@@ -23,7 +23,7 @@ class DiamondAttributeProvider(AttributeProvider):
     def get(self) -> Mapping[str, bytes]:
         attributes = dict(self._attributes)
 
-        image = Image.open(self._image_provider)
+        image = Image.open(self._image_provider).convert('RGB')
         width, height = image.size
 
         attributes['_rows.int'] = INT_CODEC.encode(height)
