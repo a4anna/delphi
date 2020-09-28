@@ -19,6 +19,9 @@ from delphi.svm.feature_provider import FeatureProvider, BATCH_SIZE, get_worker_
     set_worker_feature_provider
 from delphi.utils import log_exceptions, bounded_iter
 
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 
 # return object_provider, whether to preprocess, vector or (image, key)
 @log_exceptions
