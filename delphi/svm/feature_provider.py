@@ -47,10 +47,13 @@ class FeatureProvider(object):
         return self.cache.get(result_key)
 
     def preprocess(self, content: bytes) -> torch.Tensor:
-        image = Image.open(io.BytesIO(content))
+        try:
+            image = Image.open(io.BytesIO(content))
 
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+        except Exception as e:
+            image = Image.fromarray(np.random.randint(0,255,(256,256,3)),'RGB')
 
         return self._preprocessor(image)
 
