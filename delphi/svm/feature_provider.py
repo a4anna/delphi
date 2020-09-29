@@ -5,6 +5,7 @@ from typing import List, Optional, Dict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 from PIL import Image
 from torchvision import transforms, models
 
