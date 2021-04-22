@@ -74,7 +74,7 @@ class DistributedSVMTrainer(SVMTrainerBase):
 
             model, params, score = max(results, key=lambda item: item[2])
             logger.info('Best parameters found across all nodes: {}'.format(params))
-            return SVMModel(model, version, self.feature_provider, self.probability)
+            return SVMModel(model, version, self.feature_provider, self.probability, params['train_examples'])
         else:
             message = Any()
             message.Pack(SVMTrainerMessage(setTrainResult=SetTrainResult(version=version,
@@ -83,7 +83,7 @@ class DistributedSVMTrainer(SVMTrainerBase):
                                                                          model=pickle.dumps(best_model[0]))))
             self.context.nodes[0].internal.MessageInternal(
                 InternalMessage(searchId=self._search_id, trainerIndex=self._trainer_index, message=message))
-            return SVMModel(best_model[0], version, self.feature_provider, self.probability)
+            return SVMModel(best_model[0], version, self.feature_provider, self.probability, best_model[1]['train_examples'])
 
     def message_internal(self, request: Any) -> Any:
         message = SVMTrainerMessage()

@@ -121,6 +121,7 @@ message ImportModelRequest {
 message ModelArchive {
   int32 version = 1;
   bytes content = 2;
+  map<string, int32> trainExamples = 3;
 }
 
 message CreateSearchRequest {

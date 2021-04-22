@@ -1,5 +1,6 @@
 import io
 import multiprocessing as mp
+import numpy as np
 import pickle
 import queue
 import threading
@@ -81,6 +82,12 @@ class SVMTrainerBase(ModelTrainerBase):
                 flattened_examples.append(feature_vector)
                 flattened_labels.append(label)
 
+        (labels, counts) = np.unique(np.array(flattened_labels), return_counts=True)
+        logger.info("Number of Training Examples {} {}".format(labels, counts))
+        label_count = {}
+        for label, count in zip(labels, counts):
+            label_count[str(label)] = int(count)
+
         with parallel_backend('threading'):
             grid_search = GridSearchCV(
                 SVCWrapper(probability=self.probability),
@@ -88,6 +95,8 @@ class SVMTrainerBase(ModelTrainerBase):
             grid_search.fit(flattened_examples, flattened_labels)
 
         logger.info('Best parameters found by grid search: {}'.format(grid_search.best_params_))
+        grid_search.best_params_['train_examples'] = label_count
+
         return grid_search.best_estimator_.model, grid_search.best_params_, grid_search.best_score_
 
     # return label, vector or image, whether to preprocess
