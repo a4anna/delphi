@@ -29,8 +29,8 @@ class SVMTrainer(SVMTrainerBase):
 
     def train_model(self, train_dir: Path) -> Model:
         version = self.get_new_version()
-        model, _, _ = self.get_best_model(train_dir, self._param_grid)
-        return SVMModel(model, version, self.feature_provider, self.probability)
+        model, param, _ = self.get_best_model(train_dir, self._param_grid)
+        return SVMModel(model, version, self.feature_provider, self.probability, param['train_examples'])
 
     def message_internal(self, request: Any) -> Any:
         pass
