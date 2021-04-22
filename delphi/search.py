@@ -131,6 +131,7 @@ class Search(DataManagerContext, ModelTrainerContext):
             assert self._model is not None
             model = self._model
             model_version = self._model.version
+            train_examples = self._model.train_examples
 
         with zipfile.ZipFile(memory_file, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
             zf.writestr('model', model.get_bytes())
@@ -139,7 +140,7 @@ class Search(DataManagerContext, ModelTrainerContext):
                     zf.write(file, arcname=os.path.join('tensorboard', file.name))
 
         memory_file.seek(0)
-        return ModelArchive(version=model_version, content=memory_file.getvalue())
+        return ModelArchive(version=model_version, content=memory_file.getvalue(), trainExamples=train_examples)
 
     def train_model(self, trainer_index: int) -> None:
         assert self._node_index != 0 \
