@@ -14,7 +14,7 @@ from logzero import logger
 from delphi.context.model_trainer_context import ModelTrainerContext
 from delphi.model import Model
 from delphi.model_trainer import TrainingStyle, DataRequirement
-from delphi.proto.internal_pb2 import InternalMessage
+from delphi.proto.internal_pb2 import InternalMessage, InternalStringRequest
 from delphi.proto.learning_module_pb2 import SearchId
 from delphi.proto.svm_trainer_pb2 import SetTrainResult, SVMTrainerMessage, SetParamGrid
 from delphi.svm.feature_cache import FeatureCache
@@ -43,6 +43,9 @@ class DistributedSVMTrainer(SVMTrainerBase):
         self._param_grid_event = threading.Event()
 
         if self.context.node_index == 0:
+            for node in :
+                node.internal.GetInternalMessage(InternalStringRequest(msg="Master Node Says Hi"))
+
             threading.Thread(target=self._assign_param_grid, name='set-param-grid').start()
 
     @property

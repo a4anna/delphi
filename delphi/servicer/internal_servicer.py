@@ -8,7 +8,7 @@ from google.protobuf.wrappers_pb2 import BytesValue
 from logzero import logger
 
 from delphi.proto.internal_pb2 import GetExamplesRequest, ExampleMetadata, GetExampleRequest, StageModelRequest, \
-    InternalMessage, TrainModelRequest, ValidateTestResultsRequest, SubmitTestRequest, PromoteModelRequest, \
+    InternalStringRequest, InternalMessage, TrainModelRequest, ValidateTestResultsRequest, SubmitTestRequest, PromoteModelRequest, \
     DiscardModelRequest
 from delphi.proto.internal_pb2_grpc import InternalServiceServicer
 from delphi.search_manager import SearchManager
@@ -18,6 +18,14 @@ class InternalServicer(InternalServiceServicer):
 
     def __init__(self, manager: SearchManager):
         self._manager = manager
+
+    def GetInternalMessage(self, request: InternalStringRequest, context: grpc.ServicerContext) -> Empty:
+        try:
+            logger.info(request.msg)
+            return Empty()
+        except Exception as e:
+            logger.exception(e)
+            raise e
 
     def GetExamples(self, request: GetExamplesRequest, context: grpc.ServicerContext) -> Iterable[ExampleMetadata]:
         try:

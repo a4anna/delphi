@@ -9,6 +9,7 @@ import "google/protobuf/wrappers.proto";
 package edu.cmu.cs.delphi.api;
 
 service InternalService {
+   rpc GetInternalMessage (InternalStringRequest) returns (google.protobuf.Empty);
    rpc GetExamples (GetExamplesRequest) returns (stream ExampleMetadata);
    rpc GetExample (GetExampleRequest) returns (google.protobuf.BytesValue);
    rpc TrainModel (TrainModelRequest) returns (google.protobuf.Empty);
@@ -19,6 +20,10 @@ service InternalService {
    rpc DiscardModel (DiscardModelRequest) returns (google.protobuf.Empty);
    rpc CheckBandwidth (google.protobuf.BytesValue) returns (google.protobuf.BytesValue);
    rpc MessageInternal (InternalMessage) returns (google.protobuf.Any);
+}
+
+message InternalStringRequest {
+  string msg = 1;
 }
 
 message GetExamplesRequest {
