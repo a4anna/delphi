@@ -43,7 +43,7 @@ class DistributedSVMTrainer(SVMTrainerBase):
         self._param_grid_event = threading.Event()
 
         if self.context.node_index == 0:
-            for node in self.context.nodes:
+            for node in self.context.nodes[1:]:
                 node.internal.GetInternalMessage(InternalStringRequest(msg="Master Node Says Hi"))
 
             threading.Thread(target=self._assign_param_grid, name='set-param-grid').start()
