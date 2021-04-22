@@ -180,7 +180,7 @@ class SVMModel(Model):
                     label = '1' if score > 0 else '0'
 
                 yield ResultProvider(providers[i].id, label, score, self.version, providers[i].attributes,
-                                     providers[i].gt)
+                                     providers[i].gt, providers[i].device)
 
         logger.info('{} examples scored'.format(scored))
 
