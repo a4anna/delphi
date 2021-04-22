@@ -18,7 +18,7 @@ from delphi.learning_module_stub import LearningModuleStub
 from delphi.mpncov.mpncov_trainer import MPNCovTrainer
 from delphi.object_provider import ObjectProvider
 from delphi.proto.learning_module_pb2 import InferRequest, InferResult, ModelStats, \
-    ImportModelRequest, ModelArchive, LabeledExampleRequest, SearchId, \
+    ImportModelRequest, ModelArchive, LabeledExampleRequest, SearchId, StringRequest, \
     AddLabeledExampleIdsRequest, LabeledExample, DelphiObject, GetObjectsRequest, SearchStats, SearchInfo, \
     CreateSearchRequest
 from delphi.proto.learning_module_pb2 import RetrainPolicyConfig, SVMMode, SVMConfig, Dataset, \
@@ -56,6 +56,14 @@ class LearningModuleServicer(LearningModuleServiceServicer):
         self._model_dir = model_dir
         self._feature_cache = feature_cache
         self._port = port
+
+    def GetMessage(self, request: StringRequest, context: grpc.ServicerContext) -> Empty:
+        try:
+            logger.info(request.msg)
+            return Empty()
+        except Exception as e:
+            logger.exception(e)
+            raise e
 
     def CreateSearch(self, request: CreateSearchRequest, context: grpc.ServicerContext) -> Empty:
         try:
@@ -127,7 +135,7 @@ class LearningModuleServicer(LearningModuleServiceServicer):
             logger.exception(e)
             raise e
 
-    def GetSearches(self, request: SearchId, context: grpc.ServicerContext) -> Iterable[SearchInfo]:
+    def GetSearches(self, request: Empty, context: grpc.ServicerContext) -> Iterable[SearchInfo]:
         try:
             for search_id, metadata in self._manager.get_searches():
                 yield SearchInfo(searchId=search_id, metadata=metadata)

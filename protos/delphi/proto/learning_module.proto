@@ -7,6 +7,7 @@ import "google/protobuf/wrappers.proto";
 package edu.cmu.cs.delphi.api;
 
 service LearningModuleService {
+  rpc GetMessage (StringRequest) returns (google.protobuf.Empty);
   rpc CreateSearch (CreateSearchRequest) returns (google.protobuf.Empty);
   rpc StartSearch (SearchId) returns (google.protobuf.Empty);
   rpc StopSearch (SearchId) returns (google.protobuf.Empty);
@@ -23,6 +24,10 @@ service LearningModuleService {
   rpc GetModelStats (SearchId) returns (ModelStats);
   rpc ImportModel (ImportModelRequest) returns (google.protobuf.Empty);
   rpc ExportModel (SearchId) returns (ModelArchive);
+}
+
+message StringRequest {
+  string msg = 1;
 }
 
 message GetObjectsRequest {
