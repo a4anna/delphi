@@ -1,0 +1,46 @@
+debug: true
+model_dir: /home/shilpag/.delphi/models
+port: 6177
+node_index: 0
+nodes:
+- agra.diamond.cs.cmu.edu
+- briolette.diamond.cs.cmu.edu
+- cullinan.diamond.cs.cmu.edu
+  #- dresden.diamond.cs.cmu.edu
+  #- indore.diamond.cs.cmu.edu
+  #- kimberly.diamond.cs.cmu.edu
+  #- patiala.diamond.cs.cmu.edu
+  #- transvaal.diamond.cs.cmu.edu
+experiment-params:
+  exp_name: "iNat"
+  random_seed: 45
+  input_dir: /srv/diamond/sosp/example-bird
+  output_dir: ./logs/
+only_use_better_models: true
+retrain_policy:
+  only_positives: false
+  threshold: 0.1
+  type: percentage
+root_dir: /home/shilpag/.delphi/data
+feature_cache:
+  port: 12345
+  type: filesystem
+  feature_dir: /home/shilpag/.delphi/features
+train_strategy:
+- condition:
+    count: 5
+    type: examples_per_label
+  model:
+    cache:
+      port: 12345
+      type: noop
+    feature_extractor: mobilenet_v2 # mpncov_resnet50
+    # mpncov_resnet50 mobilenet_v2
+    linear_only: true
+    mode: distributed
+    probability: false
+    type: svm
+selector:
+  topk:
+    k: 3
+    batchSize: 1250
