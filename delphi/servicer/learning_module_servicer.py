@@ -241,9 +241,9 @@ class LearningModuleServicer(LearningModuleServiceServicer):
             logger.exception(e)
             raise e
 
-    def ExportModel(self, request: Empty, context: grpc.ServicerContext) -> ModelArchive:
+    def ExportModel(self, request: SearchId, context: grpc.ServicerContext) -> ModelArchive:
         try:
-            return self._manager.get_search(request.searchId).export_model()
+            return self._manager.get_search(request).export_model()
         except Exception as e:
             logger.exception(e)
             raise e
