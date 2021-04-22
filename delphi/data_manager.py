@@ -250,10 +250,11 @@ class DataManager(object):
         new_negatives = 0
         for label in subdir.iterdir():
             example_files = list(label.iterdir())
-            if label.name == '1':
-                new_positives += len(example_files)
-            else:
-                new_negatives += len(example_files)
+            if subdir.name != 'test':
+                if label.name == '1':
+                    new_positives += len(example_files)
+                else:
+                    new_negatives += len(example_files)
 
             for example_file in example_files:
                 for example_set in set_dirs:
