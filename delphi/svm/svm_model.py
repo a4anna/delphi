@@ -3,7 +3,7 @@ import pickle
 import queue
 import threading
 from pathlib import Path
-from typing import Callable, Iterable, List, Tuple, Any, Union
+from typing import Callable, Dict, Iterable, List, Tuple, Any, Union
 
 import torch
 from logzero import logger
@@ -58,17 +58,22 @@ def load_from_content(request: ObjectProvider) -> Tuple[ObjectProvider, bool, Un
 class SVMModel(Model):
 
     def __init__(self, svc: Union[LinearSVC, SVC, CalibratedClassifierCV, VotingClassifier], version: int,
-                 feature_provider: FeatureProvider, probability: bool):
+            feature_provider: FeatureProvider, probability: bool, train_examples: Union[Dict[str, int], Any]):
         self._svc = svc
         self._version = version
         self._feature_provider = feature_provider
         self._probability = probability
         self._system_examples = []
         self._system_examples_lock = threading.Lock()
+        self._number_trained_examples = train_examples # number of examples used for training
 
     @property
     def version(self) -> int:
         return self._version
+
+    @property
+    def train_examples(self) -> Dict[str, int]:
+        return self._number_trained_examples
 
     def infer(self, requests: Iterable[ObjectProvider]) -> Iterable[ResultProvider]:
         semaphore = threading.Semaphore(256)  # Make sure that the load function doesn't overload the consumer
