@@ -63,7 +63,7 @@ class DiamondRetriever(Retriever):
                 image_provider = io.BytesIO(content)
 
             yield ObjectProvider(object_id, content, DiamondAttributeProvider(result, image_provider),
-                                 ATTR_GT_LABEL in result)
+                                 ATTR_GT_LABEL in result, STRING_CODEC.decode(result[ATTR_DEVICE_NAME]))
 
     def get_object(self, object_id: str, attributes: Sized) -> DelphiObject:
         with self._command_lock:

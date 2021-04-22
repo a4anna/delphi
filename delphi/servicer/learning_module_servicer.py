@@ -56,6 +56,7 @@ class LearningModuleServicer(LearningModuleServiceServicer):
         self._model_dir = model_dir
         self._feature_cache = feature_cache
         self._port = port
+        self.results = set()
 
     def GetMessage(self, request: StringRequest, context: grpc.ServicerContext) -> Empty:
         try:
@@ -147,6 +148,11 @@ class LearningModuleServicer(LearningModuleServiceServicer):
         try:
             while True:
                 result = self._manager.get_search(request).selector.get_result()
+                logger.info("resultId {} {}".format(result.device, result.id))
+                if result.id in self.results:
+                    result = None
+                else:
+                    self.results.add(result.id)
                 if result is None:
                     return
                 yield InferResult(objectId=result.id, label=result.label, score=result.score,
