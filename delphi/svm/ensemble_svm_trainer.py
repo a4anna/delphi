@@ -50,7 +50,8 @@ class EnsembleSVMTrainer(SVMTrainerBase):
     def train_model(self, train_dir: Path) -> Model:
         version = self.get_new_version()
 
-        best_model = self.get_best_model(train_dir, self._param_grid)[0]
+        best_model, params = self.get_best_model(train_dir, self._param_grid)[:2]
+        train_examples = params['train_examples']
 
         if self.context.node_index == 0:
             with self._train_condition:
@@ -62,7 +63,7 @@ class EnsembleSVMTrainer(SVMTrainerBase):
                         break
                     self._train_condition.wait()
 
-            return SVMModel(PretrainedVotingClassifier(results), version, self.feature_provider, self.probability)
+            return SVMModel(PretrainedVotingClassifier(results), version, self.feature_provider, self.probability, train_examples)
         else:
             message = Any()
             message.Pack(

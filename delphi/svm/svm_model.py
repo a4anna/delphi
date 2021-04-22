@@ -58,7 +58,7 @@ def load_from_content(request: ObjectProvider) -> Tuple[ObjectProvider, bool, Un
 class SVMModel(Model):
 
     def __init__(self, svc: Union[LinearSVC, SVC, CalibratedClassifierCV, VotingClassifier], version: int,
-            feature_provider: FeatureProvider, probability: bool, train_examples: Union[Dict[str, int], Any]):
+            feature_provider: FeatureProvider, probability: bool, train_examples: Dict[str, int] = {}):
         self._svc = svc
         self._version = version
         self._feature_provider = feature_provider
