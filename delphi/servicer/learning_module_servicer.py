@@ -148,13 +148,13 @@ class LearningModuleServicer(LearningModuleServiceServicer):
         try:
             while True:
                 result = self._manager.get_search(request).selector.get_result()
-                logger.info("resultId {} {}".format(result.device, result.id))
                 if result.id in self.results:
                     result = None
                 else:
                     self.results.add(result.id)
                 if result is None:
                     return
+                logger.info("resultId {} {}".format(result.device, result.id))
                 yield InferResult(objectId=result.id, label=result.label, score=result.score,
                                   modelVersion=result.model_version, attributes=result.attributes.get())
         except Exception as e:
