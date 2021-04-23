@@ -204,21 +204,21 @@ class LearningModuleServicer(LearningModuleServiceServicer):
             exceptions = []
 
             def get_examples():
-                try:
-                    for object_id in request.examples:
+                for object_id in request.examples:
+                    try:
                         example = search.retriever.get_object(object_id, [ATTR_DATA])
                         examples.put(LabeledExample(label=request.examples[object_id], content=example.content))
-                except Exception as e:
-                    exceptions.append(e)
-                finally:
-                    examples.put(None)
+                    except Exception as e:
+                        exceptions.append(e)
+                examples.put(None)
 
             threading.Thread(target=get_examples, name='get-examples').start()
 
             search.add_labeled_examples(to_iter(examples))
 
             if len(exceptions) > 0:
-                raise exceptions[0]
+                logger.error(exceptions[0])
+                # raise exceptions[0]
 
             return Empty()
         except Exception as e:
