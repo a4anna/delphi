@@ -154,7 +154,7 @@ class LearningModuleServicer(LearningModuleServiceServicer):
                     result = None
                 else:
                     self.results.add(result.id)
-                logger.info("resultId {} {}".format(result.device, result.id))
+                    logger.info("resultId {} {}".format(result.device, result.id))
                 yield InferResult(objectId=result.id, label=result.label, score=result.score,
                                   modelVersion=result.model_version, attributes=result.attributes.get())
         except Exception as e:
