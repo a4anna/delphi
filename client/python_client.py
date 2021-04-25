@@ -19,7 +19,7 @@ import numpy as np
 from datetime import datetime
 from stats import get_stats
 from google.protobuf.empty_pb2 import Empty
-from google.protobuf.json_format import MessageToJson
+from google.protobuf.json_format import MessageToJson, MessageToDict
 from itertools import cycle
 
 from delphi.proto.learning_module_pb2 import InferRequest, InferResult, ModelStats, \
@@ -57,8 +57,6 @@ class DelphiClient(object):
         self.stubs = [LearningModuleServiceStub(get_channel(host, port)) for host in self.hosts]
         # self.stubs = [LearningModuleServiceStub(node) for node in self.nodes]
 
-        for stub in self.stubs:
-            stub.GetMessage(StringRequest(msg="Client Says Hi"))
         # random seed, train dir and output dir setup
         experiment_params = self.config['experiment-params']
         self.input_dir = experiment_params['input_dir']
@@ -97,6 +95,7 @@ class DelphiClient(object):
                                       self.stats_queue,
                                       self.stats_interval)
         self.threads = [] # TODO
+        self.search_start_time = time.time()
 
     def setup_search_config(self):
         supported_extractors = ["mobilenet_v2", "mpncov_resnet50", "resnet50"]
@@ -298,10 +297,9 @@ class DelphiClient(object):
             while not self.stats_stop_event.wait(timeout=self.stats_interval):
                 stats = self.stats_queue.get()
                 logger.info("Stats {}".format(stats))
-                if stats is None:
-                    break
                 if not stats:
                     continue
+                time_now = time.time()
                 if stats['version'] != self.model_version:
                     self.model_version = stats['version']
                     model_download = self.stubs[0].ExportModel(self.search_id)
@@ -313,17 +311,29 @@ class DelphiClient(object):
                     with open(os.path.join(self.out_dir, 'model-{}.zip'.format(self.model_version)), 'wb') as f:
                         f.write(model)
 
-                with open(os.path.join(self.out_dir, "search-stats-{}.json".format(count)), "w") as f:
+                    model_stats = MessageToDict(self.stubs[0].GetModelStats(self.search_id))
+                    with open(os.path.join(self.out_dir, "model-stats-{}.json".format(str(self.model_version).zfill(3))), "w") as f:
+                        model_stats['time'] = time_now - self.search_start_time
+                        json.dump(model_stats, f)
+
+                with open(os.path.join(self.out_dir, "search-stats-{}.json".format(str(count).zfill(3))), "w") as f:
                     stats['positives'] = self.positives
                     stats['negatives'] = self.negatives
+                    stats['time'] = time_now - self.search_start_time
                     count += 1
                     json.dump(stats, f)
-            logger.info("Stats Done !!")
         except Exception as e:
             logger.error(e)
             self.stop()
             raise e
 
+        stats = self.delphi_stats.accumulate_search_stats()
+        with open(os.path.join(self.out_dir, "search-stats-{}.json".format(str(count).zfill(3))), "w") as f:
+            stats['positives'] = self.positives
+            stats['negatives'] = self.negatives
+            stats['time'] = time.time() - self.search_start_time
+            json.dump(stats, f)
+        logger.info("Stats Done !!")
 
 
     def start(self):
@@ -332,10 +342,10 @@ class DelphiClient(object):
         self.fps = []
         self.fns = []
         self.images_processed = 0
-        [stub.StartSearch(self.search_id) for stub in self.stubs]
+        [stub.StartSearch(self.search_id) for stub in self.stubs[::-1]]
         logger.info("create done starting search")
         self.model_version = -1
-        self.global_start = time.time()
+        self.search_start_time = time.time()
         # time.sleep(2)
         logger.info("Get searches")
         found = False
@@ -366,7 +376,7 @@ class DelphiClient(object):
                     start_time = time.time()
                     result = None
                     while result is None:
-                        if time.time() - start_time > 1:
+                        if time.time() - start_time > 20:
                             break
                         result = next(results[node_id])
 
@@ -374,6 +384,7 @@ class DelphiClient(object):
                         not_found += 1
                         if not_found >= result_break:
                             break
+                        continue
                     else:
                         not_found = 0
 
