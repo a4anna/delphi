@@ -140,6 +140,8 @@ message CreateSearchRequest {
   SelectorConfig selector = 8;
   bool hasInitialExamples = 9;
   string metadata = 10;
+  // default False
+  bool skipTest = 11; 
 }
 
 message ModelConditionConfig {
