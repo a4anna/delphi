@@ -6,16 +6,16 @@ nodes:
 - agra.diamond.cs.cmu.edu
 - briolette.diamond.cs.cmu.edu
 - cullinan.diamond.cs.cmu.edu
-  #- dresden.diamond.cs.cmu.edu
-  #- indore.diamond.cs.cmu.edu
-  #- kimberly.diamond.cs.cmu.edu
-  #- patiala.diamond.cs.cmu.edu
-  #- transvaal.diamond.cs.cmu.edu
+- dresden.diamond.cs.cmu.edu
+- indore.diamond.cs.cmu.edu
+- kimberly.diamond.cs.cmu.edu
+- patiala.diamond.cs.cmu.edu
+- transvaal.diamond.cs.cmu.edu
 experiment-params:
-  exp_name: "iNat"
+  exp_name: "yfcc-test"
   random_seed: 45
   input_dir: /srv/diamond/sosp/example-bird
-  output_dir: ./logs/
+  output_dir: ../logs/
 only_use_better_models: true
 retrain_policy:
   only_positives: false
@@ -33,10 +33,10 @@ train_strategy:
   model:
     cache:
       port: 12345
-      type: noop
+      type: filesystem
     feature_extractor: mobilenet_v2 # mpncov_resnet50
     # mpncov_resnet50 mobilenet_v2
-    linear_only: true
+    linear_only: false
     mode: distributed
     probability: false
     type: svm
