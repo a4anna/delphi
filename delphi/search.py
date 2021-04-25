@@ -268,6 +268,8 @@ class Search(DataManagerContext, ModelTrainerContext):
 
     def stop(self) -> None:
         self._abort_event.set()
+        self.retriever.stop()
+        self.selector.finish()
         for trainer in self.trainers:
             trainer.close()
 
@@ -280,13 +282,13 @@ class Search(DataManagerContext, ModelTrainerContext):
         for retriever_object in self.retriever.get_objects():
             with self._model_lock:
                 version = self._model.version if self._model is not None else None
-            if version != starting_version:
+            if version != starting_version or retriever_object is None:
                 logger.info('Done evaluating with model version {} (new version {} available)'.format(starting_version,
                                                                                                       version))
                 return
             yield retriever_object
 
-        # There can be feedback from user leading to error 
+        # There can be feedback from user leading to error
         # self._abort_event.set()
         return None
 
@@ -298,12 +300,16 @@ class Search(DataManagerContext, ModelTrainerContext):
 
             while True:
                 for result in self.infer(self._objects_for_model_version()):
+                    if result in None:
+                        break
                     self.selector.add_result(result)
                     if self._abort_event.is_set():
                         break
-        finally:
+        except Exception as e:
+            logger.error(e)
             self.retriever.stop()
             self.selector.finish()
+            raise e
 
 
     @log_exceptions
