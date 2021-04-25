@@ -18,7 +18,7 @@ from delphi.learning_module_stub import LearningModuleStub
 from delphi.mpncov.mpncov_trainer import MPNCovTrainer
 from delphi.object_provider import ObjectProvider
 from delphi.proto.learning_module_pb2 import InferRequest, InferResult, ModelStats, \
-    ImportModelRequest, ModelArchive, LabeledExampleRequest, SearchId, StringRequest, \
+    ImportModelRequest, ModelArchive, LabeledExampleRequest, SearchId, \
     AddLabeledExampleIdsRequest, LabeledExample, DelphiObject, GetObjectsRequest, SearchStats, SearchInfo, \
     CreateSearchRequest
 from delphi.proto.learning_module_pb2 import RetrainPolicyConfig, SVMMode, SVMConfig, Dataset, \
@@ -56,15 +56,6 @@ class LearningModuleServicer(LearningModuleServiceServicer):
         self._model_dir = model_dir
         self._feature_cache = feature_cache
         self._port = port
-        self.results = set()
-
-    def GetMessage(self, request: StringRequest, context: grpc.ServicerContext) -> Empty:
-        try:
-            logger.info(request.msg)
-            return Empty()
-        except Exception as e:
-            logger.exception(e)
-            raise e
 
     def CreateSearch(self, request: CreateSearchRequest, context: grpc.ServicerContext) -> Empty:
         try:
@@ -149,12 +140,8 @@ class LearningModuleServicer(LearningModuleServiceServicer):
             while True:
                 result = self._manager.get_search(request).selector.get_result()
                 if result is None:
+                    logger.debug("[LS]: GOT RESULT NONE")
                     return
-                if result.id in self.results:
-                    result = None
-                else:
-                    self.results.add(result.id)
-                    logger.info("resultId {} {}".format(result.device, result.id))
                 yield InferResult(objectId=result.id, label=result.label, score=result.score,
                                   modelVersion=result.model_version, attributes=result.attributes.get())
         except Exception as e:
@@ -204,21 +191,21 @@ class LearningModuleServicer(LearningModuleServiceServicer):
             exceptions = []
 
             def get_examples():
-                for object_id in request.examples:
-                    try:
+                try:
+                    for object_id in request.examples:
                         example = search.retriever.get_object(object_id, [ATTR_DATA])
                         examples.put(LabeledExample(label=request.examples[object_id], content=example.content))
-                    except Exception as e:
-                        exceptions.append(e)
-                examples.put(None)
+                except Exception as e:
+                    exceptions.append(e)
+                finally:
+                    examples.put(None)
 
             threading.Thread(target=get_examples, name='get-examples').start()
 
             search.add_labeled_examples(to_iter(examples))
 
             if len(exceptions) > 0:
-                logger.error(exceptions[0])
-                # raise exceptions[0]
+                raise exceptions[0]
 
             return Empty()
         except Exception as e:

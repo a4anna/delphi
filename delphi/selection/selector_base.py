@@ -53,8 +53,7 @@ class SelectorBase(Selector):
     def get_result(self) -> Optional[ResultProvider]:
         while True:
             try:
-                # return self.result_queue.get(timeout=10)
-                return self.result_queue.get()
+                return self.result_queue.get(timeout=10)
             except queue.Empty:
                 if self._finish_event.is_set():
                     return None
