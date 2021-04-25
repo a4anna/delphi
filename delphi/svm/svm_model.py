@@ -76,6 +76,9 @@ class SVMModel(Model):
         return self._number_trained_examples
 
     def infer(self, requests: Iterable[ObjectProvider]) -> Iterable[ResultProvider]:
+        if requests is None or len(requests) == 0:
+            return None
+
         semaphore = threading.Semaphore(256)  # Make sure that the load function doesn't overload the consumer
 
         with mp.get_context('spawn').Pool(min(16, mp.cpu_count()), initializer=set_worker_feature_provider,

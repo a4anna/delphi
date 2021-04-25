@@ -23,12 +23,20 @@ class TopKSelector(SelectorBase):
         self._priority_queues = [queue.PriorityQueue()]
         self._batch_added = 0
         self._insert_lock = threading.Lock()
+        self.last_result_time = None
+        self.timeout = 5
+
+    def result_timeout(self, interval=0):
+        if internal == 0 or self.last_result_time is None:
+            return False
+        return (time.time() - self.last_result_time) >= interval
 
     def add_result_inner(self, result: ResultProvider) -> None:
         with self._insert_lock:
             self._priority_queues[-1].put((-result.score, result.id, result))
             self._batch_added += 1
-            if self._batch_added == self._batch_size:
+            if self._batch_added == self._batch_size or
+                (self.result_timeout(self.timeout) and self._batch_added > 0):
                 for _ in range(self._k):
                     self.result_queue.put(self._priority_queues[-1].get()[-1])
                 self._batch_added = 0
