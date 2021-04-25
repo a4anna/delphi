@@ -286,7 +286,9 @@ class Search(DataManagerContext, ModelTrainerContext):
                 return
             yield retriever_object
 
-        self._abort_event.set()
+        # There can be feedback from user leading to error 
+        # self._abort_event.set()
+        return None
 
     @log_exceptions
     def _retriever_thread(self) -> None:
@@ -298,10 +300,11 @@ class Search(DataManagerContext, ModelTrainerContext):
                 for result in self.infer(self._objects_for_model_version()):
                     self.selector.add_result(result)
                     if self._abort_event.is_set():
-                        return
+                        break
         finally:
             self.retriever.stop()
             self.selector.finish()
+
 
     @log_exceptions
     def _train_thread(self) -> None:

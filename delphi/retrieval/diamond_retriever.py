@@ -29,6 +29,7 @@ class DiamondRetriever(Retriever):
         self._start_event = threading.Event()
         self._command_lock = threading.RLock()
         self._final_stats = None
+        self._running = False
 
         try:
             self._diamond_config = DiamondConfig()
@@ -41,11 +42,13 @@ class DiamondRetriever(Retriever):
         with self._command_lock:
             self._search.start()
 
+        self._running = True
         self._start_event.set()
 
     def stop(self) -> None:
         with self._command_lock:
             self._final_stats = self.get_stats()
+            self.running = False
             self._search.close()
 
     def get_objects(self) -> Iterable[ObjectProvider]:
@@ -66,6 +69,8 @@ class DiamondRetriever(Retriever):
                                  ATTR_GT_LABEL in result)
 
     def get_object(self, object_id: str, attributes: Sized) -> DelphiObject:
+        if not self._running:
+            return None
         with self._command_lock:
             # Each Delphi server should be connected to only one Diamond server
             conn = next(iter(self._search._connections.values()))
