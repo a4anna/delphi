@@ -40,7 +40,7 @@ class Search(DataManagerContext, ModelTrainerContext):
 
     def __init__(self, id: SearchId, node_index: int, nodes: List[LearningModuleStub], retrain_policy: RetrainPolicy,
                  only_use_better_models: bool, root_dir: Path, port: int, retriever: Retriever, selector: Selector,
-                 has_initial_examples: bool):
+                 has_initial_examples: bool, skip_testing: bool = False):
         self._id = id
         self._node_index = node_index
         self._nodes = nodes
@@ -54,6 +54,7 @@ class Search(DataManagerContext, ModelTrainerContext):
 
         self.retriever = retriever
         self.selector = selector
+        self.skip_testing = skip_testing
 
         # Indicates that the search will seed the strategy with an initial set of examples. The strategy should
         # therefore hold off on returning inference results until its underlying model is trained
@@ -366,6 +367,16 @@ class Search(DataManagerContext, ModelTrainerContext):
         logger.info('Evaluated model in {:.3f} seconds'.format(time.time() - eval_start))
 
     def _score_and_set_model(self, model: Model, should_stage: bool) -> None:
+        """Evaluates the trained model on the test data. If distributed waits for results from all nodes.
+            Based on condition promotes the trained model to the current version.
+            If ``only_use_better_models` then check the AUC scores to decide.
+
+        Args:
+            model (Model): Trained model
+            should stage (bool): True, if the model needs to be shared
+
+        """
+
         with self._data_manager.get_examples(ExampleSet.TEST) as test_dir:
             if len(self._nodes) > 0:
                 for node in self._nodes[1:]:
@@ -374,42 +385,49 @@ class Search(DataManagerContext, ModelTrainerContext):
                             StageModelRequest(searchId=self._id, version=model.version, content=model.get_bytes()))
                         logger.info('Staged model on node {}'.format(node.url))
 
-                    node.internal.ValidateTestResults(
-                        ValidateTestResultsRequest(searchId=self._id, version=model.version))
-                    logger.info('Started validation for model version {} on node {}'.format(model.version, node.url))
+                    if not self.skip_testing:
+                        node.internal.ValidateTestResults(
+                            ValidateTestResultsRequest(searchId=self._id, version=model.version))
+                        logger.info('Started validation for model version {} on node {}'.format(model.version, node.url))
 
-            results = []
+            if not self.skip_testing:
+                results = []
 
-            def callback_fn(target: int, pred: float):
-                results.append((target, pred))
+                def callback_fn(target: int, pred: float):
+                    results.append((target, pred))
 
-            model.infer_dir(test_dir, callback_fn)
+                model.infer_dir(test_dir, callback_fn)
 
-            with self._results_condition:
-                test_results = self._test_results[model.version]
-                test_results.append(results)
-                while len(test_results) < len(self._nodes):
-                    self._results_condition.wait()
+                with self._results_condition:
+                    test_results = self._test_results[model.version]
+                    test_results.append(results)
+                    while len(test_results) < len(self._nodes):
+                        self._results_condition.wait()
 
-                del self._test_results[model.version]
+                    del self._test_results[model.version]
 
         model_stats = None
         targets = []
         preds = []
-        labels = set()
-        for node_results in test_results:
-            for result in node_results:
-                targets.append(result[0])
-                preds.append(result[1])
-                labels.add(results[0])
 
-        # Only create model stats if we have sufficient test set data
-        if len(labels) > 0:
-            model_stats = self.create_model_stats(model.version, targets, preds, model.scores_are_probabilities)
+        if not self.skip_testing:
+            labels = set()
+            for node_results in test_results:
+                for result in node_results:
+                    targets.append(result[0])
+                    preds.append(result[1])
+                    labels.add(results[0])
+
+            # Only create model stats if we have sufficient test set data
+            if len(labels) > 0:
+                model_stats = self.create_model_stats(model.version, targets, preds, model.scores_are_probabilities)
+        else:
+            model_stats = ModelStats(version=model.version)
 
         with self._model_lock:
             should_notify = self._model is None
             if self._only_use_better_models \
+                    and not self.skip_testing \
                     and model_stats is not None \
                     and self._model_stats is not None \
                     and self._model_stats.auc > model_stats.auc:

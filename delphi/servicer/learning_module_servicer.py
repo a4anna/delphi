@@ -64,7 +64,8 @@ class LearningModuleServicer(LearningModuleServiceServicer):
             nodes = [LearningModuleStub(node) for node in request.nodes]
             search = Search(request.searchId, request.nodeIndex, nodes, retrain_policy, request.onlyUseBetterModels,
                             self._root_dir / request.searchId.value, self._port, self._get_retriever(request.dataset),
-                            self._get_selector(request.selector), request.hasInitialExamples)
+                            self._get_selector(request.selector), request.hasInitialExamples,
+                            request.skipTest)
 
             trainers = []
             for i in range(len(request.trainStrategy)):
