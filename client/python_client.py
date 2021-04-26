@@ -21,6 +21,8 @@ from stats import get_stats
 from google.protobuf.empty_pb2 import Empty
 from google.protobuf.json_format import MessageToJson, MessageToDict
 from itertools import cycle
+from iterators import TimeoutIterator
+
 
 from delphi.proto.learning_module_pb2 import InferRequest, InferResult, ModelStats, \
     ImportModelRequest, ModelArchive, LabeledExampleRequest, Filter, SearchId, StringRequest,\
@@ -38,6 +40,7 @@ from opendiamond.attributes import StringAttributeCodec
 
 STRING_CODEC = StringAttributeCodec()
 INDEX_PATH = "/srv/diamond/INDEXES/GIDIDXDELPHI"
+LEN_FILE = None # 30000
 
 
 class DelphiClient(object):
@@ -62,6 +65,8 @@ class DelphiClient(object):
         self.input_dir = experiment_params['input_dir']
         self.train_dir = os.path.join(self.input_dir, "train")
         self.random_seed = int(experiment_params['random_seed'])
+        self.skip_test = experiment_params.get('skip_test', False)
+        logger.info("Skip Test {}".format(self.skip_test))
         random.seed(self.random_seed)
         np.random.seed(self.random_seed)
 
@@ -78,24 +83,26 @@ class DelphiClient(object):
         self.positives = 0
         self.negatives = 0
         self.model_version = -1
-
-        self.shuffle_and_generate_index_files()
-        self.setup_search_config()
-        self.add_train_test_data()
-
         # Stats Params
         stats_condition = "model"  # Model Version or Time Based
         self.stats_queue = queue.Queue()
         self.stats_stop_event = threading.Event()
         self.stats_interval = 1
+
+        self.shuffle_and_generate_index_files()
+        self.setup_search_config()
+        self.add_train_test_data()
+
+        self.threads = [] # TODO
+        self.search_start_time = time.time()
+        self.previous_stats = {}
+        self.is_first = True
         self.delphi_stats = get_stats(stats_condition,
                                       self.stubs,
                                       self.search_id,
                                       self.stats_stop_event,
                                       self.stats_queue,
                                       self.stats_interval)
-        self.threads = [] # TODO
-        self.search_start_time = time.time()
 
     def setup_search_config(self):
         supported_extractors = ["mobilenet_v2", "mpncov_resnet50", "resnet50"]
@@ -184,7 +191,8 @@ class DelphiClient(object):
                         dataset=dataset,
                         selector=selector,
                         hasInitialExamples=True,
-                        metadata="positive"
+                        metadata="positive",
+                        skipTest=self.skip_test
             )
             stub.CreateSearch(search)
             time.sleep(1)
@@ -201,6 +209,8 @@ class DelphiClient(object):
         input_files = open(src_file).read().splitlines()
 
         random.Random(self.random_seed).shuffle(input_files)
+        if LEN_FILE is not None:
+            input_files = input_files[:LEN_FILE]
 
         # divide the files among the host machines
         num_hosts = len(self.hosts)
@@ -222,7 +232,13 @@ class DelphiClient(object):
         """
         Sending train and test data to the master server
         """
-        for data_type in ['test', 'train']:
+        if self.skip_test:
+            labeled_dirs = ['train']
+        else:
+            # transfer test data before train data
+            labeled_dirs = ['test', 'train']
+
+        for data_type in labeled_dirs:
             self.add_examples(self.stubs[0], self.to_examples(os.path.join(self.input_dir, data_type)), data_type)
 
 
@@ -294,12 +310,51 @@ class DelphiClient(object):
             logger.info("Start logging")
             # logs = open(os.path.join(self.out_dir, "search-stats.json"), "w")
             count = 1
+            timeout_counter = 0
+
+            def yield_stats():
+                yield self.stats_queue.get()
+
+            #stats_iterator = TimeoutIterator(yield_stats(), timeout=30, sentinel=None)
+            time_now = time.time()
             while not self.stats_stop_event.wait(timeout=self.stats_interval):
-                stats = self.stats_queue.get()
-                logger.info("Stats {}".format(stats))
+
+                # try:
+                #     stats = next(stats_iterator)
+                # except:
+                #     stats = None
+                #     timeout_counter += 1
+
+
+                # if not stats and timeout_counter < 30:
+                #     timeout_counter += 1
+                #     continue
+
+                try:
+                    stats = self.stats_queue.get(timeout=30)
+                except:
+                    stats = self.delphi_stats.accumulate_search_stats()
+                    stats['version'] = self.model_version
+                    logger.info("Timeout stats {}".format(stats))
+                    logger.info(" {} == {} or {} == {} + {}".format(self.previous_stats.get('processedObjects', -1),
+                                                                    stats.get('processedObjects', 1),
+                                                                    int(stats['totalObjects']),
+                                                                    int(stats.get('processedObjects', 0)),
+                                                                    int(stats.get('droppedObjects', 0))))
+                    if int(self.previous_stats.get('processedObjects', -1)) == int(stats.get('processedObjects', 1)) or \
+                    (int(stats['totalObjects']) == int(stats.get('processedObjects', 0)) + int(stats.get('droppedObjects', 0))):
+                        logger.info("Finished Processing")
+                        break
+                    if 'processedObjects' in stats:
+                        self.previous_stats = stats
+
+                    stats = None
+
                 if not stats:
                     continue
+
                 time_now = time.time()
+                self.previous_stats = stats
                 if stats['version'] != self.model_version:
                     self.model_version = stats['version']
                     model_download = self.stubs[0].ExportModel(self.search_id)
@@ -322,6 +377,8 @@ class DelphiClient(object):
                     stats['time'] = time_now - self.search_start_time
                     count += 1
                     json.dump(stats, f)
+
+                logger.info("Stats {}".format(stats))
         except Exception as e:
             logger.error(e)
             self.stop()
@@ -364,29 +421,48 @@ class DelphiClient(object):
         threading.Thread(target=self.stats_logging).start()
         threading.Thread(target=self.delphi_stats.start).start()
         negative_key = "negative" # "/0/"
+        # results = [TimeoutIterator(stub.GetResults(self.search_id), timeout=200, sentinel=None) for stub in self.stubs]
         results = [stub.GetResults(self.search_id) for stub in self.stubs]
+        result_queue = queue.Queue()
+
+        for stub_id, stub in enumerate(self.stubs):
+            def add_results(node_id, input_queue):
+                for result in stub.GetResults(self.search_id):
+                    input_queue.put((node_id, result))
+
+            threading.Thread(target=add_results, args=(stub_id, result_queue,)).start()
+
+
+        finished_ids = 0 # set()
 
         try:
             def _result_thread():
-                node_assignments = cycle(range(len(self.stubs)))
+                # node_assignments = cycle(range(len(self.stubs)))
                 result_break = len(self.stubs)
-                not_found = 0
-                while True:
-                    node_id = next(node_assignments)
+                while not self.stats_stop_event.is_set():
+                    # node_id = next(node_assignments)
                     start_time = time.time()
-                    result = None
-                    while result is None:
-                        if time.time() - start_time > 20:
-                            break
-                        result = next(results[node_id])
+                    try:
+                        # result = next(results[node_id])
+                        node_id, result = result_queue.get(timeout=60)
+                    except:
+                        result = None
 
                     if result is None:
-                        not_found += 1
-                        if not_found >= result_break:
+                        if self.is_first:
+                            continue
+                        # logger.info("{} {}".format(node_id, result))
+                        # finished_ids.add(node_id)
+                        finished_ids += 1
+                        logger.info("None result Finished Ids {}".format(finished_ids))
+                        if finished_ids >= result_break:
                             break
                         continue
                     else:
-                        not_found = 0
+                        finished_ids = 0
+
+                    if self.is_first:
+                        self.is_first = False
 
                     attributes = result.attributes
                     device_name = STRING_CODEC.decode(attributes['Device-Name'])
@@ -397,13 +473,14 @@ class DelphiClient(object):
                     else:
                         self.positives += 1
                     labeled = {obj_id: label}
-                    logger.info("{} {}".format(device_name, labeled))
+                    logger.info("{} {} {}".format(node_id, device_name, labeled))
                     request = AddLabeledExampleIdsRequest(
                                 searchId=self.search_id,
                                 examples=labeled)
                     # TODO Add think time
                     self.stubs[node_id].AddLabeledExampleIds(request)
                 logger.info("Result outside loop ?? {}".format(result is None))
+                self.stop()
 
                 # for result in stub.GetResults(self.search_id):
                 #     if result is None:
