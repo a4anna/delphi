@@ -1,5 +1,6 @@
 import math
 import queue
+import time
 import threading
 from typing import Optional
 
@@ -24,10 +25,10 @@ class TopKSelector(SelectorBase):
         self._batch_added = 0
         self._insert_lock = threading.Lock()
         self.last_result_time = None
-        self.timeout = 5
+        self.timeout = 300
 
     def result_timeout(self, interval=0):
-        if internal == 0 or self.last_result_time is None:
+        if interval == 0 or self.last_result_time is None:
             return False
         return (time.time() - self.last_result_time) >= interval
 
@@ -35,11 +36,13 @@ class TopKSelector(SelectorBase):
         with self._insert_lock:
             self._priority_queues[-1].put((-result.score, result.id, result))
             self._batch_added += 1
-            if self._batch_added == self._batch_size or
-                (self.result_timeout(self.timeout) and self._batch_added > 0):
+            # if self._batch_added == self._batch_size or \
+            #     (self.result_timeout(self.timeout) and self._batch_added > 0):
+            if self._batch_added == self._batch_size:
                 for _ in range(self._k):
                     self.result_queue.put(self._priority_queues[-1].get()[-1])
                 self._batch_added = 0
+                self.last_result_time = time.time()
 
     def new_model_inner(self, model: Optional[Model]) -> None:
         with self._insert_lock:
