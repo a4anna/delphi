@@ -23,6 +23,7 @@ class DataManager(object):
 
     def __init__(self, context: DataManagerContext):
         self._context = context
+        logger.debug("Skip Testing {}".format(self._context.skip_testing))
 
         self._staging_dir = self._context.data_dir / 'examples-staging'
         self._staging_dir.mkdir(parents=True, exist_ok=True)
@@ -248,6 +249,10 @@ class DataManager(object):
 
         new_positives = 0
         new_negatives = 0
+
+        if self._context.skip_testing and subdir.name == 'test':
+            return new_positives, new_negatives
+
         for label in subdir.iterdir():
             example_files = list(label.iterdir())
             if subdir.name != 'test':
@@ -263,6 +268,7 @@ class DataManager(object):
                         self._increment_example_count(example_set, old_path.parent.name, -1)
 
                 if subdir.name == 'test' or (subdir.name == 'unspecified'
+                                             and not self._context.skip_testing
                                              and self._get_example_count(ExampleSet.TEST,
                                                                          label.name) * TRAIN_TO_TEST_RATIO <
                                              self._get_example_count(ExampleSet.TRAIN, label.name)):
