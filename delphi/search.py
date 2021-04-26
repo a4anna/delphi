@@ -274,6 +274,10 @@ class Search(DataManagerContext, ModelTrainerContext):
             trainer.close()
 
     def _objects_for_model_version(self) -> Iterable[Optional[ObjectProvider]]:
+
+        if self._abort_event.is_set():
+            return
+
         with self._model_lock:
             starting_version = self._model.version if self._model is not None else None
 
@@ -289,8 +293,9 @@ class Search(DataManagerContext, ModelTrainerContext):
             yield retriever_object
 
         # There can be feedback from user leading to error
-        # self._abort_event.set()
-        return None
+        self._abort_event.set()
+        # return None
+
 
     @log_exceptions
     def _retriever_thread(self) -> None:
@@ -299,9 +304,9 @@ class Search(DataManagerContext, ModelTrainerContext):
                 self._initial_model_event.wait()
 
             while True:
+                if self._abort_event.is_set():
+                    break
                 for result in self.infer(self._objects_for_model_version()):
-                    if result in None:
-                        break
                     self.selector.add_result(result)
                     if self._abort_event.is_set():
                         break
