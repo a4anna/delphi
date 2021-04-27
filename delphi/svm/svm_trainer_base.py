@@ -28,6 +28,7 @@ from delphi.svm.svm_model import SVMModel
 from delphi.utils import log_exceptions, to_iter, bounded_iter
 
 C_VALUES = [0.01, 0.1, 1, 10]
+C_VALUES_LINEAR = [0.01, 0.1, 1, 10, 0.5, 2, 20, 100]
 GAMMA_VALUES = [0.001, 0.01, 0.1, 1, 10]
 F1_SCORER = make_scorer(f1_score, pos_label='1')
 

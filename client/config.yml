@@ -12,15 +12,15 @@ nodes:
 - patiala.diamond.cs.cmu.edu
 - transvaal.diamond.cs.cmu.edu
 experiment-params:
-  exp_name: "yfcc-test"
-  random_seed: 45
+  exp_name: "yfcc-maxent"
+  random_seed: 43
   input_dir: /srv/diamond/sosp/example-bird
   output_dir: ../logs/
-  skip_test: false 
-only_use_better_models: true
+  skip_test: true
+only_use_better_models: false
 retrain_policy:
   only_positives: false
-  threshold: 0.1
+  threshold: 0.5
   type: percentage
 root_dir: /home/shilpag/.delphi/data
 feature_cache:
@@ -37,11 +37,13 @@ train_strategy:
       type: filesystem
     feature_extractor: mobilenet_v2 # mpncov_resnet50
     # mpncov_resnet50 mobilenet_v2
-    linear_only: false
+    linear_only: true
     mode: distributed
-    probability: false
+    probability: true
     type: svm
 selector:
   topk:
     k: 3
+    # maxent threshold pure
+    mode: maxent
     batchSize: 1250

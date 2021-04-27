@@ -141,7 +141,7 @@ message CreateSearchRequest {
   bool hasInitialExamples = 9;
   string metadata = 10;
   // default False
-  bool skipTest = 11; 
+  bool skipTest = 11;
 }
 
 message ModelConditionConfig {
@@ -250,7 +250,8 @@ message SelectorConfig {
 message TopKSelectorConfig {
   int32 k = 1;
   int32 batchSize = 2;
-  ReexaminationStrategyConfig reexaminationStrategy = 3;
+  string mode = 3;
+  ReexaminationStrategyConfig reexaminationStrategy = 4;
 }
 
 message ThresholdConfig {
