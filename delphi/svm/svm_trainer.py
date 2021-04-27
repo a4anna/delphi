@@ -6,7 +6,7 @@ from delphi.model import Model
 from delphi.model_trainer import TrainingStyle, DataRequirement
 from delphi.svm.feature_cache import FeatureCache
 from delphi.svm.svm_model import SVMModel
-from delphi.svm.svm_trainer_base import SVMTrainerBase, C_VALUES, GAMMA_VALUES
+from delphi.svm.svm_trainer_base import SVMTrainerBase, C_VALUES, C_VALUES_LINEAR, GAMMA_VALUES
 
 
 class SVMTrainer(SVMTrainerBase):
@@ -14,7 +14,7 @@ class SVMTrainer(SVMTrainerBase):
     def __init__(self, context: ModelTrainerContext, model_dir: Path, feature_extractor: str, cache: FeatureCache,
                  probability: bool, linear_only: bool):
         super().__init__(context, model_dir, feature_extractor, cache, probability)
-        self._param_grid = [{'C': C_VALUES, 'kernel': ['linear']}]
+        self._param_grid = [{'C': C_VALUES_LINEAR, 'kernel': ['linear']}]
 
         if not linear_only:
             self._param_grid.append({'C': C_VALUES, 'gamma': GAMMA_VALUES, 'kernel': ['rbf']})

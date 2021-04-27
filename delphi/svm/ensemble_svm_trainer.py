@@ -18,7 +18,7 @@ from delphi.proto.svm_trainer_pb2 import SetTrainResult, SVMTrainerMessage
 from delphi.svm.feature_cache import FeatureCache
 from delphi.svm.pretrained_voting_classifier import PretrainedVotingClassifier
 from delphi.svm.svm_model import SVMModel
-from delphi.svm.svm_trainer_base import SVMTrainerBase, C_VALUES, GAMMA_VALUES
+from delphi.svm.svm_trainer_base import SVMTrainerBase, C_VALUES, C_VALUES_LINEAR, GAMMA_VALUES
 
 
 class EnsembleSVMTrainer(SVMTrainerBase):
@@ -30,7 +30,7 @@ class EnsembleSVMTrainer(SVMTrainerBase):
         self._search_id = search_id
         self._trainer_index = trainer_index
 
-        self._param_grid = [{'C': C_VALUES, 'kernel': ['linear']}]
+        self._param_grid = [{'C': C_VALUES_LINEAR, 'kernel': ['linear']}]
 
         if not linear_only:
             self._param_grid.append({'C': C_VALUES, 'gamma': GAMMA_VALUES, 'kernel': ['rbf']})

@@ -1,5 +1,6 @@
 import json
 import pickle
+import random
 import threading
 import time
 from itertools import cycle
@@ -59,6 +60,11 @@ class DistributedSVMTrainer(SVMTrainerBase):
 
         with self._param_grid_lock:
             param_grid = self._param_grid
+            # TODO Temp Fix Remove
+            Cs = [0.01, 0.1, 1, 10, 0.5, 2, 20, 100]
+            if not param_grid:
+                param_grid = [{'C': [random.choice(Cs)], 'kernel': ['linear']}]
+            logger.info("PARAM GRID {}".format(param_grid))
 
         best_model = self.get_best_model(train_dir, param_grid)
 

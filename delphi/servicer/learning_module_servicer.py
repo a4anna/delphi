@@ -38,6 +38,8 @@ from delphi.selection.selector import Selector
 from delphi.selection.threshold_selector import ThresholdSelector
 from delphi.selection.top_reexamination_strategy import TopReexaminationStrategy
 from delphi.selection.topk_selector import TopKSelector
+from delphi.selection.topk_maxent_selector import MaxEntropySelector
+from delphi.selection.topk_threshold_selector import TopKThresholdSelector
 from delphi.simple_attribute_provider import SimpleAttributeProvider
 from delphi.svm.distributed_svm_trainer import DistributedSVMTrainer
 from delphi.svm.ensemble_svm_trainer import EnsembleSVMTrainer
@@ -261,8 +263,18 @@ class LearningModuleServicer(LearningModuleServiceServicer):
 
     def _get_selector(self, selector: SelectorConfig) -> Selector:
         if selector.HasField('topk'):
-            return TopKSelector(selector.topk.k, selector.topk.batchSize,
-                                self._get_reexamination_strategy(selector.topk.reexaminationStrategy))
+            top_k_param = json_format.MessageToDict(selector.topk)
+            logger.info("TopK Params {}".format(top_k_param))
+            mode = top_k_param.get('mode', 'pure')
+            if mode == "maxent":
+                return MaxEntropySelector(selector.topk.k, selector.topk.batchSize,
+                                    self._get_reexamination_strategy(selector.topk.reexaminationStrategy))
+            elif mode == "threshold":
+                return TopKThresholdSelector(selector.topk.k, selector.topk.batchSize,
+                                    self._get_reexamination_strategy(selector.topk.reexaminationStrategy))
+            else:
+                return TopKSelector(selector.topk.k, selector.topk.batchSize,
+                                    self._get_reexamination_strategy(selector.topk.reexaminationStrategy))
         elif selector.HasField('threshold'):
             return ThresholdSelector(selector.threshold.threshold,
                                      self._get_reexamination_strategy(selector.threshold.reexaminationStrategy))
