@@ -11,16 +11,22 @@ class SVCWrapper(BaseEstimator):
         self.gamma = gamma
 
         if kernel == 'linear':
-            model = LinearSVC(random_state=42, class_weight='balanced', verbose=1, C=C)
-            self.model = CalibratedClassifierCV(model) if self.probability else model
+            # model = LinearSVC(random_state=42, class_weight='balanced', verbose=1, C=C)
+            # self.model = CalibratedClassifierCV(model) if self.probability else model
+            self.model = SVC(random_state=42, class_weight='balanced', verbose=1, kernel=kernel, C=C, probability=probability)
         else:
-            self.model = SVC(random_state=42, class_weight='balanced', verbose=1, kernel=kernel, C=C, gamma=gamma)
+            self.model = SVC(random_state=42, class_weight='balanced', verbose=1, kernel=kernel, C=C, gamma=gamma, probability=probability)
 
     def fit(self, X, y, sample_weight=None):
         self.model.fit(X, y, sample_weight)
 
     def predict(self, X):
         return self.model.predict(X)
+
+    def predict_proba(self, X):
+        assert self.probability
+        return self.model.predict_proba(X)
+
 
     def decision_function(self, X):
         return self.model.decision_function(X)

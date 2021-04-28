@@ -107,6 +107,16 @@ class SVMModel(Model):
     def get_bytes(self) -> bytes:
         return pickle.dumps(self._svc)
 
+    def is_fitted(self):
+        fit_status = 1
+        # only for SVC Model returns 0 if fitted well
+        try:
+            fit_status = self._svc.fit_status_
+        except:
+            fit_status = 1
+        return not fit_status
+
+
     @property
     def scores_are_probabilities(self) -> bool:
         return self._probability
@@ -170,7 +180,7 @@ class SVMModel(Model):
 
             if len(features) == 0:
                 continue
-
+            # logger.info("Probability {}".format(self._probability))
             scores = self._svc.predict_proba(features) if self._probability else self._svc.decision_function(
                 features)
             scored += len(providers)
