@@ -12,7 +12,7 @@ nodes:
 - patiala.diamond.cs.cmu.edu
 - transvaal.diamond.cs.cmu.edu
 experiment-params:
-  exp_name: "yfcc-maxent"
+  exp_name: "yfcc-topk"
   random_seed: 43
   input_dir: /srv/diamond/sosp/example-bird
   output_dir: ../logs/
@@ -37,13 +37,13 @@ train_strategy:
       type: filesystem
     feature_extractor: mobilenet_v2 # mpncov_resnet50
     # mpncov_resnet50 mobilenet_v2
-    linear_only: true
+    linear_only: true # false
     mode: distributed
-    probability: true
+    probability: false # true
     type: svm
 selector:
   topk:
     k: 3
     # maxent threshold pure
-    mode: maxent
+    mode: pure
     batchSize: 1250

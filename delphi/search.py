@@ -131,11 +131,15 @@ class Search(DataManagerContext, ModelTrainerContext):
         with self._model_lock:
             assert self._model is not None
             model = self._model
-            model_version = self._model.version
-            train_examples = self._model.train_examples
+            model_dump =  model.get_bytes()
+            model_version = model.version
+            train_examples = model.train_examples
+            fit_status = model.is_fitted()
+
+            assert fit_status, "Model not fitted"
 
         with zipfile.ZipFile(memory_file, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr('model', model.get_bytes())
+            zf.writestr('model', model_dump)
             if self._tb_writer is not None:
                 for file in self._tb_dir.iterdir():
                     zf.write(file, arcname=os.path.join('tensorboard', file.name))
