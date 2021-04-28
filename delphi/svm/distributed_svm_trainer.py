@@ -145,6 +145,7 @@ class DistributedSVMTrainer(SVMTrainerBase):
             param_grids.append([])
 
         node_assignments = cycle(range(len(self.context.nodes)))
+        #TODO Change
 
         Cs = [0.01, 0.1, 1, 10]
         gammas = [0.001, 0.01, 0.1, 1, 10]
