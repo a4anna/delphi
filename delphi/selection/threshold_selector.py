@@ -1,5 +1,6 @@
 import queue
 import threading
+from logzero import logger
 from typing import Optional
 
 from delphi.model import Model
@@ -23,6 +24,9 @@ class ThresholdSelector(SelectorBase):
         self._false_negatives = 0
 
     def add_result_inner(self, result: ResultProvider) -> None:
+        if '/1/' in result.id:
+           logger.info("{} Score {}".format(result.id, result.score))
+
         if result.score > self._threshold:
             self.result_queue.put(result)
         elif self._reexamination_strategy.revisits_old_results:

@@ -1,5 +1,6 @@
 from abc import ABCMeta, abstractmethod
 from typing import Optional
+from pathlib import Path
 
 from delphi.model import Model
 from delphi.result_provider import ResultProvider
@@ -22,6 +23,10 @@ class Selector(metaclass=ABCMeta):
 
     @abstractmethod
     def new_model(self, model: Optional[Model]) -> None:
+        pass
+
+    @abstractmethod
+    def add_easy_negatives(self, path: Path) -> None:
         pass
 
     @abstractmethod

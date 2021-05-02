@@ -1,12 +1,12 @@
 import queue
 import threading
 from abc import abstractmethod
-from typing import Optional
+from typing import Optional, List
 
 from delphi.model import Model
 from delphi.result_provider import ResultProvider
 from delphi.selection.selector import Selector
-
+from delphi.context.data_manager_context import DataManagerContext
 
 class SelectorBase(Selector):
 
@@ -17,6 +17,7 @@ class SelectorBase(Selector):
 
         self._model_lock = threading.Lock()
         self._model_present = False
+        self._search = None
 
         self._finish_event = threading.Event()
 
@@ -27,6 +28,12 @@ class SelectorBase(Selector):
     @abstractmethod
     def new_model_inner(self, model: Optional[Model]) -> None:
         pass
+
+    def add_easy_negatives(self, path):
+        pass
+
+    def add_context(self, context: DataManagerContext):
+        self._search = context
 
     def add_result(self, result: ResultProvider) -> None:
         with self._model_lock:
@@ -57,3 +64,9 @@ class SelectorBase(Selector):
             except queue.Empty:
                 if self._finish_event.is_set():
                     return None
+
+    def delete_examples(self, examples: List) -> None:
+        # for path in examples:
+        #     if path.exists():
+        #         path.unlink()
+        pass

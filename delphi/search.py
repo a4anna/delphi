@@ -78,6 +78,8 @@ class Search(DataManagerContext, ModelTrainerContext):
 
         self._abort_event = threading.Event()
 
+        self.selector.add_context(self)
+
         if self._node_index == 0:
             threading.Thread(target=self._train_thread, name='train-model').start()
 
@@ -134,9 +136,9 @@ class Search(DataManagerContext, ModelTrainerContext):
             model_dump =  model.get_bytes()
             model_version = model.version
             train_examples = model.train_examples
-            fit_status = model.is_fitted()
+            # fit_status = model.is_fitted()
 
-            assert fit_status, "Model not fitted"
+            # assert fit_status, "Model not fitted"
 
         with zipfile.ZipFile(memory_file, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
             zf.writestr('model', model_dump)
@@ -363,10 +365,12 @@ class Search(DataManagerContext, ModelTrainerContext):
                 for node in self._nodes[1:]:
                     node.internal.TrainModel(TrainModelRequest(searchId=self._id, trainerIndex=trainer_index))
 
+            self.selector.add_easy_negatives(self._data_manager.get_example_directory(ExampleSet.TRAIN))
             model = self.trainers[trainer_index].trainer.train_model(train_dir)
 
         eval_start = time.time()
         logger.info('Trained model in {:.3f} seconds'.format(eval_start - train_start))
+        logger.info("CALLING SCORE & SET MODEL {}".format(self.trainers[trainer_index].trainer.should_sync_model))
         self._score_and_set_model(model, self.trainers[trainer_index].trainer.should_sync_model)
         logger.info('Evaluated model in {:.3f} seconds'.format(time.time() - eval_start))
 
@@ -380,6 +384,7 @@ class Search(DataManagerContext, ModelTrainerContext):
             should stage (bool): True, if the model needs to be shared
 
         """
+        logger.info("SCORE & SET MODEL")
 
         with self._data_manager.get_examples(ExampleSet.TEST) as test_dir:
             if len(self._nodes) > 0:
@@ -399,7 +404,7 @@ class Search(DataManagerContext, ModelTrainerContext):
 
                 def callback_fn(target: int, pred: float):
                     results.append((target, pred))
-
+                logger.info("INFERRING FOR TESTING")
                 model.infer_dir(test_dir, callback_fn)
 
                 with self._results_condition:
@@ -467,6 +472,7 @@ class Search(DataManagerContext, ModelTrainerContext):
 
         with self._data_manager.get_examples(ExampleSet.TRAIN) as train_dir:
             train_start = time.time()
+            self.selector.add_easy_negatives(self._data_manager.get_example_directory(ExampleSet.TRAIN))
             model = self.trainers[trainer_index].trainer.train_model(train_dir)
             logger.info('Trained model in {:.3f} seconds'.format(time.time() - train_start))
 

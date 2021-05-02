@@ -44,6 +44,9 @@ class DataManager(object):
         self._stored_examples_event = threading.Event()
         threading.Thread(target=self._promote_staging_examples, name='promote-staging-examples').start()
 
+    def get_example_directory(self, example_set: ExampleSet) -> Path:
+        return self._examples_dir / self._to_dir(example_set)
+
     def add_labeled_examples(self, examples: Iterable[LabeledExample]) -> None:
         if self._context.node_index == 0:
             self._store_labeled_examples(examples, None)
