@@ -14,6 +14,7 @@ from delphi.condition.bandwidth_condition import BandwidthCondition
 from delphi.condition.examples_per_label_condition import ExamplesPerLabelCondition
 from delphi.condition.test_auc_condition import TestAucCondition
 from delphi.context.model_trainer_context import ModelTrainerContext
+from delphi.finetune.finetune_model import ResNetTrainer
 from delphi.learning_module_stub import LearningModuleStub
 from delphi.mpncov.mpncov_trainer import MPNCovTrainer
 from delphi.object_provider import ObjectProvider
@@ -28,6 +29,7 @@ from delphi.retrain.absolute_threshold_policy import AbsoluteThresholdPolicy
 from delphi.retrain.percentage_threshold_policy import PercentageThresholdPolicy
 from delphi.retrain.retrain_policy import RetrainPolicy
 from delphi.retrieval.diamond_retriever import DiamondRetriever
+from delphi.retrieval.dota_retriever import DotaRetriever
 from delphi.retrieval.retriever import Retriever
 from delphi.search import Search
 from delphi.search_manager import SearchManager
@@ -68,7 +70,6 @@ class LearningModuleServicer(LearningModuleServiceServicer):
                             self._root_dir / request.searchId.value, self._port, self._get_retriever(request.dataset),
                             self._get_selector(request.selector), request.hasInitialExamples,
                             request.skipTest)
-
             trainers = []
             for i in range(len(request.trainStrategy)):
                 if request.trainStrategy[i].HasField('examplesPerLabel'):
@@ -96,6 +97,8 @@ class LearningModuleServicer(LearningModuleServiceServicer):
                                             self._model_dir)
                 elif model.HasField('wsdan'):
                     trainer = WSDANTrainer(search, model.wsdan.distributed, model.wsdan.visualize, model.wsdan.freeze)
+                elif model.HasField('finetune'):
+                    trainer = ResNetTrainer(search, model.finetune.start)
                 else:
                     raise NotImplementedError('unknown model: {}'.format(json_format.MessageToJson(model)))
 
@@ -316,5 +319,7 @@ class LearningModuleServicer(LearningModuleServiceServicer):
     def _get_retriever(self, dataset: Dataset) -> Retriever:
         if dataset.HasField('diamond'):
             return DiamondRetriever(dataset.diamond)
+        elif dataset.HasField('dota'):
+            return DotaRetriever(dataset.dota)
         else:
             raise NotImplementedError('unknown dataset: {}'.format(json_format.MessageToJson(dataset)))

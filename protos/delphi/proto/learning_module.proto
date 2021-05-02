@@ -173,6 +173,7 @@ message ModelConfig {
     SVMConfig svm = 1;
     FastMPNCOVConfig fastMPNCOV = 2;
     WSDANConfig wsdan = 3;
+    FinetuneConfig finetune = 4;
   }
 }
 
@@ -200,6 +201,10 @@ message WSDANConfig {
   bool visualize = 3;
 }
 
+message FinetuneConfig {
+  int32 start = 1;
+}
+
 message RetrainPolicyConfig {
   oneof value {
     AbsoluteThresholdPolicyConfig absolute = 1;
@@ -220,6 +225,7 @@ message PercentageThresholdPolicyConfig {
 message Dataset {
   oneof value {
     DiamondDataset diamond = 1;
+    DiamondDataset dota = 2;
   }
 }
 

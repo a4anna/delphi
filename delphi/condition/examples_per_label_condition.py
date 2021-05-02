@@ -20,6 +20,8 @@ class ExamplesPerLabelCondition(ModelCondition):
             return False
 
         for label in example_counts:
+            if label not in ['0', '1']:
+                continue
             if example_counts[label] < self._count:
                 logger.info('Less than {} labels present for label {} (found {})'.format(self._count, label,
                                                                                          example_counts[label]))
