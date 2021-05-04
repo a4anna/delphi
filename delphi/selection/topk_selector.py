@@ -16,6 +16,8 @@ from delphi.selection.selector_base import SelectorBase
 from delphi.selection.selector_stats import SelectorStats
 from delphi.utils import get_example_key
 from opendiamond.server.object_ import ATTR_DATA
+from delphi.utils import log_exceptions
+
 
 class TopKSelector(SelectorBase):
 
@@ -28,6 +30,7 @@ class TopKSelector(SelectorBase):
         self._k = k
         self._batch_size = batch_size
         self._reexamination_strategy = reexamination_strategy
+        self._number_excess_batch = 2
 
         self._priority_queues = [queue.PriorityQueue()]
         self._batch_added = 0
@@ -43,6 +46,7 @@ class TopKSelector(SelectorBase):
             return False
         return (time.time() - self.last_result_time) >= interval
 
+    @log_exceptions
     def add_result_inner(self, result: ResultProvider) -> None:
         with self._insert_lock:
             if '/1/' in result.id:
@@ -57,6 +61,7 @@ class TopKSelector(SelectorBase):
                 self._batch_added = 0
                 self.last_result_time = time.time()
 
+    @log_exceptions
     def add_easy_negatives(self, path: Path) -> None:
         if not self.add_negatives:
             return
@@ -101,6 +106,7 @@ class TopKSelector(SelectorBase):
 
                 self.version += 1
                 # add fractional batch before possibly discarding results in old queue
+                logger.info("ADDING some to result Queue {}".format(math.ceil(float(self._k) * self._batch_added / self._batch_size)))
                 for _ in range(math.ceil(float(self._k) * self._batch_added / self._batch_size)):
                     self.result_queue.put(self._priority_queues[-1].get()[-1])
                 self._priority_queues = self._reexamination_strategy.get_new_queues(model, self._priority_queues)

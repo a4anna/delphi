@@ -1,11 +1,9 @@
 import io
-import os
-import random
-import time
 import threading
+import time
+import queue
 from pathlib import Path
 from typing import Iterable, Sized
-from collections import defaultdict
 
 from logzero import logger
 from opendiamond.attributes import StringAttributeCodec
@@ -34,13 +32,12 @@ class DotaRetriever(Retriever):
         self._command_lock = threading.RLock()
         self._final_stats = None
         self._running = False
-        files = sorted(open("/srv/diamond/INDEXES/GIDIDXDELPHI").read().splitlines())
-        self.img_tile_map = defaultdict(list)
-        for f in files:
-            key = os.path.basename(f).split('_')[0]
-            self.img_tile_map[key].append(f)
-        self.images = sorted(list(self.img_tile_map.keys()))
-        random.shuffle(self.images)
+        self.timeout = 10
+        self.num_tiles = 128
+        self.object_counter = 0
+        self.is_first = True
+        self.result_queue = queue.Queue()
+
         try:
             self._diamond_config = DiamondConfig()
         except Exception as e:
@@ -54,6 +51,7 @@ class DotaRetriever(Retriever):
 
         self._running = True
         self._start_event.set()
+        threading.Thread(target=self.stream_objects, name='stream').start()
 
     def stop(self) -> None:
         with self._command_lock:
@@ -61,25 +59,39 @@ class DotaRetriever(Retriever):
             self.running = False
             self._search.close()
 
+    def stream_objects(self):
+
+        for result in self._search.results:
+            self.object_counter += 1
+            if self.object_counter > self.num_tiles:
+                self.object_counter = 0
+                time.sleep(self.timeout)
+
+            content = result[ATTR_DATA]
+            del result[ATTR_DATA]
+            object_id = STRING_CODEC.decode(result[ATTR_OBJ_ID])
+
+            # Optimization to directly load the data from local disk if possible instead of holding it in memory
+            if self._diamond_config is not None \
+                    and STRING_CODEC.decode(result[ATTR_DEVICE_NAME]) in self._diamond_config.serverids \
+                    and object_id.startswith('http://localhost'):
+                image_provider = Path(self._diamond_config.dataroot) / object_id.split('/collection/id/')[1]
+            else:
+                image_provider = io.BytesIO(content)
+
+            self.result_queue.put(ObjectProvider(object_id, content, DiamondAttributeProvider(result, image_provider),
+                                 ATTR_GT_LABEL in result))
+
     def get_objects(self) -> Iterable[ObjectProvider]:
-        for key in self.images:
-            tiles = self.img_tile_map[key]
-            # logger.info(key)
 
-            for tile in tiles:
-                image_path = Path(os.path.join(self._diamond_config.dataroot, tile))
-                with open(image_path, 'rb') as f:
-                    content = f.read()
-
-                object_id = "http://localhost:5873/collection/id/"+tile
-                result = {
-                    'Device-Name': STRING_CODEC.encode(self._diamond_config.serverids[0]),
-                    '_ObjectID': STRING_CODEC.encode(object_id),
-                }
-
-                yield ObjectProvider(object_id, content, DiamondAttributeProvider(result, image_path), False)
-
-            time.sleep(1)
+        while True:
+            try:
+                result = self.result_queue.get(timeout=self.timeout)
+                yield result
+            except Exception:
+                # Return None ??
+                time.sleep(self.timeout)
+                continue
 
     def get_object(self, object_id: str, attributes: Sized) -> DelphiObject:
         if not self._running:
@@ -96,13 +108,6 @@ class DotaRetriever(Retriever):
         dct = dict((attr.name, attr.value) for attr in reply.attrs)
         content = dct[ATTR_DATA]
         del dct[ATTR_DATA]
-        # dct = {}
-        # path = object_id.split("collection/id/")[-1]
-        # image_path = Path(os.path.join(self._diamond_config.dataroot, path))
-        # logger.info(image_path)
-        # with open(image_path, 'rb') as f:
-        #     content = f.read()
-        # dct = {}
 
         return DelphiObject(objectId=object_id, content=content, attributes=dct)
 

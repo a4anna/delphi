@@ -22,7 +22,7 @@ class SVCWrapper(BaseEstimator):
         X = np.array(X)
         y = np.array(y)
         class_ = set(np.unique(y))
-        logger.info("y {}".format(class_))
+        # logger.info("y {}".format(class_))
         assert len(class_) > 1
         # min_num = 1000000
         # for c in class_:

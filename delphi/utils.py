@@ -44,8 +44,8 @@ class ImageFromList(torch.utils.data.Dataset):
     """Load dataset from path list"""
     def __init__(self, image_list, transform, label_list=None, limit=None):
         self.loader = self.image_loader
-        if label_list is None:
-            random.shuffle(image_list)
+        # if label_list is None:
+        #    random.shuffle(image_list)
         # self.imlist = image_list
         self.transform = transform
         target_transform = lambda x: 1 if '/1/' in x else 0
@@ -70,7 +70,9 @@ class ImageFromList(torch.utils.data.Dataset):
             self.imlist.append(img)
 
         #     label_list = [self.classes.index(label) for label in labels]
-        self.targets = label_list
+        # self.targets = label_list
+        print("Number of Dataset(Limit {}): \n Targets {} \n Positives {} Labels {}".format(
+            limit, len(self.targets), sum(self.targets), set(self.targets)))
 
     def image_loader(self, path):
         return Image.open(path).convert('RGB')
@@ -85,6 +87,18 @@ class ImageFromList(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.imlist)
+
+
+class ImageWithPath(ImageFromList):
+    """Returns image path with data"""
+    def __init__(self, image_list, transform, label_list=None):
+        self.img_paths = image_list
+        super(ImageWithPath, self).__init__(image_list, transform, label_list)
+
+    def __getitem__(self, idx):
+        img, label = super(ImageWithPath, self).__getitem__(idx)
+        path = self.img_paths[idx]
+        return path, img, label
 
 
 def get_example_key(content) -> str:

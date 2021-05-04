@@ -101,14 +101,17 @@ class FinetuneModelBase(Model):
         del tensors
         for i in range(len(batch)):
             score = predictions[i]
-            if self.svc is None:
-                yield ResultProvider(batch[i][0].id, '1' if score >= 0.5 else '0',
-                                     score, self.version,
-                                     batch[i][0].attributes, batch[i][0].gt)
-            else:
-                yield ResultProvider(batch[i][0].id, '1' if score >= 0 else '0',
-                                     score, self.version,
-                                     batch[i][0].attributes, batch[i][0].gt)
+            yield ResultProvider(batch[i][0].id, '1' if score >= 0.5 else '0',
+                                 score, self.version,
+                                 batch[i][0].attributes, batch[i][0].gt)
+            # if self.svc is None:
+            #     yield ResultProvider(batch[i][0].id, '1' if score >= 0.5 else '0',
+            #                          score, self.version,
+            #                          batch[i][0].attributes, batch[i][0].gt)
+            # else:
+            #     yield ResultProvider(batch[i][0].id, '1' if score >= 0 else '0',
+            #                          score, self.version,
+            #                          batch[i][0].attributes, batch[i][0].gt)
 
 
 

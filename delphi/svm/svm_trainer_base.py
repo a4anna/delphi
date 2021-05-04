@@ -1,4 +1,6 @@
 import io
+import os
+import glob
 import multiprocessing as mp
 import numpy as np
 import pickle
@@ -103,11 +105,12 @@ class SVMTrainerBase(ModelTrainerBase):
     # return label, vector or image, whether to preprocess
     def _get_example_features(self, example_dir: Path) -> Dict[str, List[List[float]]]:
         semaphore = threading.Semaphore(256)  # Make sure that the load function doesn't overload the consumer
+        train_dir = list(example_dir.glob('0/*')) + list(example_dir.glob('1/*'))
 
         with mp.get_context('spawn').Pool(min(16, mp.cpu_count()), initializer=set_worker_feature_provider,
                                           initargs=(self.feature_provider.feature_extractor,
                                                     self.feature_provider.cache)) as pool:
-            images = pool.imap_unordered(load_from_path, bounded_iter(example_dir.glob('*/*'), semaphore))
+            images = pool.imap_unordered(load_from_path, bounded_iter(train_dir, semaphore))
             feature_queue = queue.Queue()
 
             @log_exceptions
