@@ -36,10 +36,15 @@ class TopKSelector(SelectorBase):
         self._batch_added = 0
         self._insert_lock = threading.Lock()
         self.last_result_time = None
-        self.timeout = 300
+        self.timeout = 60
         self.add_negatives = add_negatives
         self.easy_negatives = defaultdict(list)
-        self.version = -1
+        self.version = 0
+        self._en = 0.1
+        self.num_negatives_added = 0
+        self.num_revisited = 0
+        self.num_positives = 0
+
 
     def result_timeout(self, interval=0):
         if interval == 0 or self.last_result_time is None:
@@ -50,14 +55,25 @@ class TopKSelector(SelectorBase):
     def add_result_inner(self, result: ResultProvider) -> None:
         with self._insert_lock:
             if '/1/' in result.id:
+                self.num_positives += 1
                 logger.info("Queueing {} Score {}".format(result.id, result.score))
             self._priority_queues[-1].put((-result.score, result.id, result))
             self._batch_added += 1
-            # if self._batch_added == self._batch_size or \
-            #     (self.result_timeout(self.timeout) and self._batch_added > 0):
-            if self._batch_added == self._batch_size:
+            if self._batch_added == self._batch_size or \
+                (self.result_timeout(self.timeout) and not self._search.retriever.is_running()):
+                if self._batch_added == 0 and not self._search.retriever.is_running():
+                    self._search.retriever.stop()
+                    return
+                if (not self._search.retriever.is_running()):
+                    logger.info("Retriever ended!")
+            # if self._batch_added == self._batch_size:
                 for _ in range(self._k):
-                    self.result_queue.put(self._priority_queues[-1].get()[-1])
+                    result = self._priority_queues[-1].get()[-1]
+                    logger.info("[Result] Id {} Score {}".format(result.id, result.score))
+                    if result.score <= self._en:
+                        logger.info("[Result] LOWER THAN EN Id {} Score {}".format(result.id, result.score))
+                        break
+                    self.result_queue.put(result)
                 self._batch_added = 0
                 self.last_result_time = time.time()
 
@@ -66,7 +82,7 @@ class TopKSelector(SelectorBase):
         if not self.add_negatives:
             return
 
-        negative_path = path / '2'
+        negative_path = path / '-1'
         os.makedirs(str(negative_path), exist_ok=True)
 
         result_list = []
@@ -81,13 +97,23 @@ class TopKSelector(SelectorBase):
             return
         result_list = sorted(result_list, key= lambda x: x.score, reverse=True)
 
-        num_auto_negative = int(0.25 * length_results)
-        logger.info("[EASY NEG] Length of result list {} {}".format(length_results, num_auto_negative))
+        num_auto_negative = int(0.40 * length_results)
         auto_negative_list = result_list[-num_auto_negative:]
+
+        # DEBUGGING
+        labels = [1 if '/1/' in item.id else 0 for item in auto_negative_list]
+        logger.info("[EASY NEG] Length of result list {} \n \
+         negatives added:{} \n ".format(length_results, num_auto_negative, sum(labels)))
+
+        self.num_negatives_added += len(auto_negative_list)
 
         for result in auto_negative_list:
             object_id = result.id
             example = self._search.retriever.get_object(object_id, [ATTR_DATA])
+            if example is None:
+                if not self._search.retriever.is_running():
+                    self._search.retriever.stop()
+                return
             example_file = get_example_key(example.content)
             example_path = negative_path / example_file
             with example_path.open('wb') as f:
@@ -99,7 +125,8 @@ class TopKSelector(SelectorBase):
         with self._insert_lock:
             if model is not None:
                 version = self.version
-                if version in self.easy_negatives:
+                self.version = model.version
+                if version != self.version:
                     versions = [v for v in self.easy_negatives.keys() if v <= version]
                     for v in versions:
                         self.delete_examples(self.easy_negatives[v])
@@ -110,6 +137,8 @@ class TopKSelector(SelectorBase):
                 for _ in range(math.ceil(float(self._k) * self._batch_added / self._batch_size)):
                     self.result_queue.put(self._priority_queues[-1].get()[-1])
                 self._priority_queues = self._reexamination_strategy.get_new_queues(model, self._priority_queues)
+                self.num_revisited += len(list(self._priority_queues[-1].queue))
+                self.num_negatives_added = 0
             else:
                 # this is a reset, discard everything
                 self._priority_queues = [queue.PriorityQueue()]
@@ -118,6 +147,11 @@ class TopKSelector(SelectorBase):
 
     def get_stats(self) -> SelectorStats:
         with self.stats_lock:
-            items_processed = self.items_processed
+            stats = {'processed_objects': self.items_processed,
+                     'items_revisited': self.num_revisited,
+                     'negatives_added': self.num_negatives_added,
+                     'positive_in_stream': self.num_positives,
+            }
 
-        return SelectorStats(items_processed, 0, None, 0)
+
+        return SelectorStats(stats)

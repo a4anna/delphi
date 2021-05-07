@@ -52,6 +52,8 @@ def main():
         signal.signal(signal.SIGUSR1, dumpstacks)
 
     server = grpc.server(futures.ThreadPoolExecutor(), options=[
+        # ('grpc.max_send_message_length', 1 * 1024 * 1024),
+        # ('grpc.max_receive_message_length', 1 * 1024 * 1024)
         ('grpc.max_send_message_length', 1024 * 1024 * 1024),
         ('grpc.max_receive_message_length', 1024 * 1024 * 1024)
     ])

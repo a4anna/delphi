@@ -49,6 +49,9 @@ class ImageFromList(torch.utils.data.Dataset):
         # self.imlist = image_list
         self.transform = transform
         target_transform = lambda x: 1 if '/1/' in x else 0
+
+        image_list = sorted(image_list, reverse=True)
+
         labels = [target_transform(path) for path in image_list]
         # self.imlist = [p.split('@')[0] for p in image_list]
         self.classes = sorted(set(labels))
@@ -62,6 +65,8 @@ class ImageFromList(torch.utils.data.Dataset):
         num_count = {k: 0 for k in max_count}
         self.targets = []
         self.imlist = []
+        # assuming -1, 0, 1 reverse sort so that images in 0 given higher prefernce
+
         for target, img in zip(label_list, image_list):
             num_count[target] += 1
             if num_count[target] > max_count[target]:

@@ -6,6 +6,7 @@ from delphi.condition.model_condition import ModelCondition
 from delphi.model_trainer import ModelTrainer
 from delphi.proto.learning_module_pb2 import ModelStats
 
+from delphi.data_manager import IGNORE_FILE
 
 class ExamplesPerLabelCondition(ModelCondition):
 
@@ -20,7 +21,9 @@ class ExamplesPerLabelCondition(ModelCondition):
             return False
 
         for label in example_counts:
-            if label not in ['0', '1']:
+            if label.name in IGNORE_FILE:
+                continue
+            if label.name not in ['0', '1']:
                 continue
             if example_counts[label] < self._count:
                 logger.info('Less than {} labels present for label {} (found {})'.format(self._count, label,

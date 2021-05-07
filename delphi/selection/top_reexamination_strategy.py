@@ -21,11 +21,12 @@ class TopReexaminationStrategy(ReexaminationStrategy):
         for priority_queue in old_queues:
             for _ in range(self._k):
                 try:
-                    to_reexamine.append(priority_queue.get_nowait()[1])
+                    to_reexamine.append(priority_queue.get_nowait()[-1])
                 except queue.Empty:
                     break
 
         for result in model.infer(to_reexamine):
+            path_name = ('/').join(result.id.split('/')[-2:])
             new_queue.put((-result.score, result.id, result))
 
         return old_queues + [new_queue]

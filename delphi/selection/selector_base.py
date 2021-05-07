@@ -66,7 +66,7 @@ class SelectorBase(Selector):
                     return None
 
     def delete_examples(self, examples: List) -> None:
-        # for path in examples:
-        #     if path.exists():
-        #         path.unlink()
-        pass
+        for path in examples:
+            if path.exists():
+                path.unlink()
+        # pass

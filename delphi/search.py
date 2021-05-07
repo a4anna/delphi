@@ -40,7 +40,7 @@ class Search(DataManagerContext, ModelTrainerContext):
 
     def __init__(self, id: SearchId, node_index: int, nodes: List[LearningModuleStub], retrain_policy: RetrainPolicy,
                  only_use_better_models: bool, root_dir: Path, port: int, retriever: Retriever, selector: Selector,
-                 has_initial_examples: bool, skip_testing: bool = False):
+                 has_initial_examples: bool, skip_testing: bool = False, train_path: str = ""):
         self._id = id
         self._node_index = node_index
         self._nodes = nodes
@@ -57,6 +57,7 @@ class Search(DataManagerContext, ModelTrainerContext):
         self.retriever = retriever
         self.selector = selector
         self.skip_testing = skip_testing
+        self.initial_train_path = train_path
 
         # Indicates that the search will seed the strategy with an initial set of examples. The strategy should
         # therefore hold off on returning inference results until its underlying model is trained
@@ -64,7 +65,6 @@ class Search(DataManagerContext, ModelTrainerContext):
 
         self._model: Optional[Model] = None
         self._tb_writer: Optional[SummaryWriter] = None
-        self._data_manager = DataManager(self)
 
         self._model_stats = ModelStats(version=-1)
         self._model_lock = threading.Lock()
@@ -81,8 +81,10 @@ class Search(DataManagerContext, ModelTrainerContext):
 
         self._abort_event = threading.Event()
 
+        self._data_manager = DataManager(self)
         self.selector.add_context(self)
         self.object_count = 0
+        # self._data_manager.add_initial_examples()
 
         if self._node_index == 0:
             threading.Thread(target=self._train_thread, name='train-model').start()
@@ -115,8 +117,8 @@ class Search(DataManagerContext, ModelTrainerContext):
         else:
             self._data_manager.add_labeled_examples(examples)
 
-    def get_examples(self, example_set: ExampleSet, node_index: int, share_all: bool = False) -> Iterable[ExampleMetadata]:
-        return self._data_manager.get_example_stream(example_set, node_index, share_all)
+    def get_examples(self, example_set: ExampleSet, node_index: int) -> Iterable[ExampleMetadata]:
+        return self._data_manager.get_example_stream(example_set, node_index)
 
     def get_example(self, example_set: ExampleSet, label: str, example: str) -> Path:
         return self._data_manager.get_example_path(example_set, label, example)
@@ -361,12 +363,9 @@ class Search(DataManagerContext, ModelTrainerContext):
         with self._model_lock:
             model = self._model
 
-        share_all = False
-        if model is None:
-            share_all =True
-
-        with self._data_manager.get_examples(ExampleSet.TRAIN, share_all) as train_dir:
+        with self._data_manager.get_examples(ExampleSet.TRAIN) as train_dir:
             example_counts = {}
+            logger.info("Train dir {}".format(train_dir))
             for label in train_dir.iterdir():
                 example_counts[label] = len(list(label.iterdir()))
 
@@ -393,7 +392,7 @@ class Search(DataManagerContext, ModelTrainerContext):
             model = self.trainers[trainer_index].trainer.train_model(train_dir)
             # TODO REMOVE TEMP DOWNLOAD at server
             model_download = model.get_bytes()
-            filename = self._model_dir / 'model-{}.zip'.format(model.version)
+            filename = self._model_dir / 'model-{}.zip'.format(str(model.version).zfill(3))
             with zipfile.ZipFile(filename, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
                 zf.writestr('model', model_download)
 
@@ -491,7 +490,7 @@ class Search(DataManagerContext, ModelTrainerContext):
             if should_notify:
                 self._initial_model_event.set()
 
-            
+
             if len(self._nodes) > 0:
                 for node in self._nodes[1:]:
                     node.internal.PromoteModel(PromoteModelRequest(searchId=self._id, version=model.version))
@@ -503,11 +502,7 @@ class Search(DataManagerContext, ModelTrainerContext):
         with self._model_lock:
             model = self._model
 
-        share_all = False
-        if model is None:
-            share_all =True
-
-        with self._data_manager.get_examples(ExampleSet.TRAIN, share_all) as train_dir:
+        with self._data_manager.get_examples(ExampleSet.TRAIN) as train_dir:
             train_start = time.time()
             self.selector.add_easy_negatives(self._data_manager.get_example_directory(ExampleSet.TRAIN))
             model = self.trainers[trainer_index].trainer.train_model(train_dir)

@@ -21,8 +21,7 @@ class InternalServicer(InternalServiceServicer):
 
     def GetExamples(self, request: GetExamplesRequest, context: grpc.ServicerContext) -> Iterable[ExampleMetadata]:
         try:
-            logger.info("ISFIRST {}".format(request.isFirst))
-            return self._manager.get_search(request.searchId).get_examples(request.exampleSet, request.nodeIndex, request.isFirst)
+            return self._manager.get_search(request.searchId).get_examples(request.exampleSet, request.nodeIndex)
         except Exception as e:
             logger.exception(e)
             raise e

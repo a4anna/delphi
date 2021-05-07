@@ -83,16 +83,17 @@ class ResNetModel(FinetuneModelBase):
                 self._model = current_model
                 self._model.to(self.device)
                 self._model.eval()
+                svc = self.svc
                 output = self._model(inputs)
-            if self.svc is None:
+            if svc is None:
                 probability = torch.softmax(output[0], dim=1)
-                probability = np.squeeze(probability.cpu().numpy())[:, 1]
+                probability = probability.cpu().numpy()[:, 1]
                 return probability
             else:
                 features = output[1]
                 features = features.data.cpu().numpy()
                 try:
-                    result = self.svc.predict_proba(features)[:, 1]  # self.svc.decision_function(features)
+                    result = svc.predict_proba(features)[:, 1]  # self.svc.decision_function(features)
                 except Exception as e:
                     logger.error(e)
 
@@ -295,10 +296,10 @@ class ResNetTrainer(FinetuneTrainerBase):
 
         while '0' not in labels:
             labels = [os.path.basename(path) for path in glob.glob(os.path.join(str(train_dir), '*'))]
-            time.sleep(30) 
-             
+            time.sleep(30)
 
-        epochs = 5
+
+        # epochs = 5
         # params = {
         #     'model_arch': 'resnet50',
         #     'num_cats': 2,
@@ -324,7 +325,7 @@ class ResNetTrainer(FinetuneTrainerBase):
                     return key
             return None
 
-        condition = check_train_condition()
+        # condition = check_train_condition()
 
         # if condition is None:
         #     logger.info("[FINETUNE] No training")
@@ -332,6 +333,7 @@ class ResNetTrainer(FinetuneTrainerBase):
         #         return ResNetModel(prev_state.version, prev_state.epoch, prev_state.optimizer_dict,
         #                            prev_state.svc, prev_state.train_examples)
 
+        condition = "finetune"
         if condition != "finetune":
             logger.info("[FINETUNE] SVM training")
             self.train_positives['svm'] = len_positives
@@ -343,9 +345,12 @@ class ResNetTrainer(FinetuneTrainerBase):
         self._model = ResNet(self.params)
         self._model.to(self.device)
 
-        # TODO REMOVE
         if len_positives < 50:
             epochs = 2
+        elif len_positives < 100:
+            epochs = 5
+        else:
+            epochs = 10
 
         # setup optimizer
         self._optimizer = torch.optim.SGD(
@@ -375,7 +380,7 @@ class ResNetTrainer(FinetuneTrainerBase):
             image_list.extend(paths)
 
         # dataset = datasets.ImageFolder(str(train_dir), transform=self._train_transforms)
-        dataset = ImageFromList(image_list, transform=self._train_transforms, limit=5000)
+        dataset = ImageFromList(image_list, transform=self._train_transforms, limit=500*len_positives)
         weights = get_weights(dataset.targets)
         sampler = WeightedRandomSampler(weights, len(weights))
 
@@ -454,23 +459,24 @@ class ResNetTrainer(FinetuneTrainerBase):
             # del self._model
             torch.cuda.empty_cache()
 
-        if self.finetune_first: # np.all([v == 0 for _, v in self.train_positives.items()]):
-            self.finetune_first = False
-            logger.info("UNLINKING NEGATIVES")
-            if os.path.exists(str(train_dir / '0')):
-                for path in (train_dir / '0').iterdir():
-                    if path.exists():
-                        path.unlink()
-                        # path.rename(str(path).replace('/1/', '/2/'))
+        # if self.finetune_first: # np.all([v == 0 for _, v in self.train_positives.items()]):
+        #     self.finetune_first = False
+        #     logger.info("UNLINKING NEGATIVES")
+        #     if os.path.exists(str(train_dir / '0')):
+        #         for path in glob.glob(os.path.join(str(train_dir), '0', '*'))[6:]:
+        #             path = Path(path)
+        #             if path.exists():
+        #                 path.unlink()
+        #                 # path.rename(str(path).replace('/1/', '/2/'))
 
         # TODO REMOVE
-        if len_positives < 50:
-            self.resnet_train = 50
-            self.conditions_train['finetune'] = (self.increment_condition, ('finetune', self.resnet_train))
-        else:
-            self.train_positives['finetune'] = len_positives
+        # if len_positives < 50:
+        #     self.resnet_train = 50
+        #     self.conditions_train['finetune'] = (self.increment_condition, ('finetune', self.resnet_train))
+        # else:
+        self.train_positives['finetune'] = len_positives
         # epochs = self._curr_epoch
-        # self._curr_epoch = 0
+        self._curr_epoch = 0
 
         return ResNetModel(self.get_new_version(), self._curr_epoch, self._optimizer.state_dict(), None, curr_count)
 

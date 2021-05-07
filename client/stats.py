@@ -25,13 +25,19 @@ class DelphiStats(object):
             try:
                 search_stat = stub.GetSearchStats(self.search_id)
                 search_stat = MessageToDict(search_stat)
-                logger.info(search_stat)
+                # logger.info(search_stat)
                 for k, v in search_stat.items():
-                    stats[k] += float(v)
+                    if isinstance(v, dict):
+                        others = v
+                        for key, value in others.items():
+                            stats[key] += float(value)
+                    else:
+                        stats[k] += float(v)
             except Exception as e:
                 logger.error(e)
                 pass
 
+        logger.info(stats)
         return stats
 
     def get_latest_model_version(self):

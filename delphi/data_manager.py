@@ -1,4 +1,6 @@
 import queue
+import os
+import glob
 import threading
 from collections import defaultdict
 from contextlib import contextmanager
@@ -15,7 +17,7 @@ from delphi.utils import get_example_key, to_iter
 
 TMP_DIR = 'test-0'
 
-IGNORE_FILE = ['ignore', '2']
+IGNORE_FILE = ['ignore', '2', '-1']
 TRAIN_TO_TEST_RATIO = 4  # Hold out 20% of labeled examples as test
 
 
@@ -40,6 +42,9 @@ class DataManager(object):
         self._tmp_dir.mkdir(parents=True, exist_ok=True)
 
         self._example_counts = defaultdict(int)
+        initial_train_path =  self._context.initial_train_path
+        if initial_train_path is not None and len(initial_train_path):
+            self.add_initial_examples(initial_train_path)
 
         self._stored_examples_event = threading.Event()
         threading.Thread(target=self._promote_staging_examples, name='promote-staging-examples').start()
@@ -47,7 +52,7 @@ class DataManager(object):
     def get_example_directory(self, example_set: ExampleSet) -> Path:
         return self._examples_dir / self._to_dir(example_set)
 
-    def add_labeled_examples(self, examples: Iterable[LabeledExample], share_all:bool =False) -> None:
+    def add_labeled_examples(self, examples: Iterable[LabeledExample]) -> None:
         if self._context.node_index == 0:
             self._store_labeled_examples(examples, None)
             return
@@ -69,7 +74,7 @@ class DataManager(object):
             else:
                 # We're using distributed_positives - only share positives and test set
                 def add_example(example: LabeledExample) -> None:
-                    if example.exampleSet.value is ExampleSet.TEST or example.label == '1' or share_all:
+                    if example.exampleSet.value is ExampleSet.TEST or example.label == '1':
                         example_queue.put(LabeledExampleRequest(example=example))
 
                 self._store_labeled_examples(examples, add_example)
@@ -77,14 +82,39 @@ class DataManager(object):
         example_queue.put(None)
         future.result()
 
+    def add_initial_examples(self, path):
+        # path = self.initial_train_path
+        if not os.path.exists(path):
+            return
+        examples = glob.glob(os.path.join(path, '*/*'))
+        labels = [1 if '/1/' in path else 0 for path in examples]
+        new_positives = sum(labels)
+        new_negatives = len(labels) - new_positives
+
+        for label, example in zip(labels, examples):
+            with open(example, 'rb') as f:
+                content = f.read()
+                example_file = get_example_key(content)
+                train_dir = os.path.join(self._examples_dir, 'train', str(label))
+                if not os.path.exists(train_dir):
+                    os.makedirs(train_dir, exist_ok=True)
+                example_path = os.path.join(train_dir, example_file)
+                with open(example_path, 'wb') as f:
+                    f.write(content)
+            # logger.info("Adding {} to {}".format(example, example_path))
+
+        # self._context.new_examples_callback(new_positives, new_negatives)
+        self._context.new_examples_callback(new_positives, new_positives) # to trigger training
+
+
     @contextmanager
-    def get_examples(self, example_set: ExampleSet, share_all:bool = False) -> Iterable[Path]:
+    def get_examples(self, example_set: ExampleSet) -> Iterable[Path]:
         with self._examples_lock:
             if self._context.node_index != 0:
                 if example_set is ExampleSet.TRAIN:
                     assert self._get_data_requirement() is not DataRequirement.MASTER_ONLY
 
-                self._sync_with_master(example_set, share_all)
+                self._sync_with_master(example_set)
                 yield self._examples_dir / self._to_dir(example_set)
             else:
                 example_dir = self._examples_dir / self._to_dir(example_set)
@@ -104,7 +134,7 @@ class DataManager(object):
                 else:
                     yield example_dir
 
-    def get_example_stream(self, example_set: ExampleSet, node_index: int, share_all:bool =False) -> Iterable[ExampleMetadata]:
+    def get_example_stream(self, example_set: ExampleSet, node_index: int) -> Iterable[ExampleMetadata]:
         assert self._examples_lock.locked()
         assert self._context.node_index == 0
         assert node_index != 0
@@ -113,9 +143,11 @@ class DataManager(object):
         if example_set is ExampleSet.TRAIN:
             assert self._get_data_requirement() is not DataRequirement.MASTER_ONLY
             for label in example_dir.iterdir():
-                if not share_all:
-                    if self._get_data_requirement() is DataRequirement.DISTRIBUTED_POSITIVES and label.name != '1':
-                        continue
+                if label.name in IGNORE_FILE:
+                    continue
+
+                if self._get_data_requirement() is DataRequirement.DISTRIBUTED_POSITIVES and label.name != '1':
+                    continue
 
                 for example in label.iterdir():
                     yield ExampleMetadata(label=label.name, key=example.name)
@@ -176,7 +208,7 @@ class DataManager(object):
                     example_path = label_dir / example_file
                     with example_path.open('wb') as f:
                         f.write(example.content)
-                    # logger.info('Saved example with label {} to path {}'.format(example.label, example_path))
+                    logger.info('Saved example with label {} to path {}'.format(example.label, example_path))
                 else:
                     logger.info('Example set to ignore - skipping')
                     ignore_file = self._staging_dir / IGNORE_FILE[0]
@@ -188,22 +220,20 @@ class DataManager(object):
 
         self._stored_examples_event.set()
 
-    def _sync_with_master(self, example_set: ExampleSet, is_first: bool =False) -> None:
+    def _sync_with_master(self, example_set: ExampleSet) -> None:
         to_delete = defaultdict(set)
         example_dir = self._examples_dir / self._to_dir(example_set)
         for label in example_dir.iterdir():
-            if not is_first:
-                if self._get_data_requirement() is DataRequirement.DISTRIBUTED_POSITIVES \
-                        and example_set is ExampleSet.TRAIN \
-                        and not is_first \
-                        and label.name != '1':
-                    continue
+            if self._get_data_requirement() is DataRequirement.DISTRIBUTED_POSITIVES \
+                    and example_set is ExampleSet.TRAIN \
+                    and label.name != '1':
+                continue
 
             to_delete[label.name] = set(x.name for x in label.iterdir())
 
         for example in self._context.nodes[0].internal.GetExamples(
                 GetExamplesRequest(searchId=self._context.search_id, exampleSet=example_set,
-                                   nodeIndex=self._context.node_index, isFirst=is_first)):
+                                   nodeIndex=self._context.node_index)):
             if example.key in to_delete[example.label]:
                 to_delete[example.label].remove(example.key)
             else:
@@ -292,7 +322,7 @@ class DataManager(object):
                 example_dir.mkdir(parents=True, exist_ok=True)
                 example_path = example_dir / example_file.name
                 example_file.rename(example_path)
-                # logger.info('Promoted example with label {} to path {}'.format(label.name, example_path))
+                logger.info('Promoted example with label {} to path {}'.format(label.name, example_path))
 
         return new_positives, new_negatives
 
@@ -311,7 +341,7 @@ class DataManager(object):
             old_example_path = old_path / example_file
             if old_example_path.exists():
                 old_example_path.unlink()
-                # logger.info('Removed old path {} for example'.format(old_example_path))
+                logger.info('Removed old path {} for example'.format(old_example_path))
                 return old_example_path
 
         return None

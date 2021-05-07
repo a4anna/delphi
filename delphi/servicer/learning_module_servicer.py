@@ -1,3 +1,4 @@
+import copy
 import queue
 import threading
 from pathlib import Path
@@ -15,6 +16,7 @@ from delphi.condition.examples_per_label_condition import ExamplesPerLabelCondit
 from delphi.condition.test_auc_condition import TestAucCondition
 from delphi.context.model_trainer_context import ModelTrainerContext
 from delphi.finetune.finetune_model import ResNetTrainer
+from delphi.finetune.dnn_svm_model import DnnSvmTrainer
 from delphi.learning_module_stub import LearningModuleStub
 from delphi.mpncov.mpncov_trainer import MPNCovTrainer
 from delphi.object_provider import ObjectProvider
@@ -40,6 +42,7 @@ from delphi.selection.selector import Selector
 from delphi.selection.threshold_selector import ThresholdSelector
 from delphi.selection.top_reexamination_strategy import TopReexaminationStrategy
 from delphi.selection.topk_selector import TopKSelector
+from delphi.selection.topk_dynamic_selector import TopKDynamicSelector
 from delphi.selection.topk_maxent_selector import MaxEntropySelector
 from delphi.selection.topk_threshold_selector import TopKThresholdSelector
 from delphi.simple_attribute_provider import SimpleAttributeProvider
@@ -69,7 +72,8 @@ class LearningModuleServicer(LearningModuleServiceServicer):
             search = Search(request.searchId, request.nodeIndex, nodes, retrain_policy, request.onlyUseBetterModels,
                             self._root_dir / request.searchId.value, self._port, self._get_retriever(request.dataset),
                             self._get_selector(request.selector), request.hasInitialExamples,
-                            request.skipTest)
+                            request.skipTest, request.trainPath)
+
             trainers = []
             for i in range(len(request.trainStrategy)):
                 if request.trainStrategy[i].HasField('examplesPerLabel'):
@@ -99,6 +103,8 @@ class LearningModuleServicer(LearningModuleServiceServicer):
                     trainer = WSDANTrainer(search, model.wsdan.distributed, model.wsdan.visualize, model.wsdan.freeze)
                 elif model.HasField('finetune'):
                     trainer = ResNetTrainer(search, model.finetune.start)
+                elif model.HasField('dnn_svm'):
+                    trainer = DnnSvmTrainer(search, model.finetune.start)
                 else:
                     raise NotImplementedError('unknown model: {}'.format(json_format.MessageToJson(model)))
 
@@ -223,12 +229,24 @@ class LearningModuleServicer(LearningModuleServiceServicer):
             search = self._manager.get_search(request)
             retriever_stats = search.retriever.get_stats()
             selector_stats = search.selector.get_stats()
+            search_stats = vars(copy.deepcopy(retriever_stats))
+            search_stats.update(vars(copy.deepcopy(selector_stats)))
+            for k, v in search_stats.items():
+                search_stats[k] = str(v)
+            keys = ['total_objects', 'processed_objects', 'dropped_objects', 'passed_objects', 'false_negatives']
+            for key in keys:
+                if key in search_stats:
+                    del search_stats[key]
+            retriever_stats = search.retriever.get_stats()
+            selector_stats = search.selector.get_stats()
             passed_objects = selector_stats.passed_objects
-            return SearchStats(totalObjects=retriever_stats.total_objects,
+
+            return SearchStats(totalObjects=int(retriever_stats.total_objects),
                                processedObjects=retriever_stats.dropped_objects + selector_stats.processed_objects,
                                droppedObjects=retriever_stats.dropped_objects + selector_stats.dropped_objects,
                                passedObjects=Int64Value(value=passed_objects) if passed_objects is not None else None,
-                               falseNegatives=retriever_stats.false_negatives + selector_stats.false_negatives)
+                               falseNegatives=retriever_stats.false_negatives + selector_stats.false_negatives,
+                               others=search_stats)
         except Exception as e:
             logger.exception(e)
             raise e
@@ -274,6 +292,9 @@ class LearningModuleServicer(LearningModuleServiceServicer):
                                     self._get_reexamination_strategy(selector.topk.reexaminationStrategy))
             elif mode == "threshold":
                 return TopKThresholdSelector(selector.topk.k, selector.topk.batchSize,
+                                    self._get_reexamination_strategy(selector.topk.reexaminationStrategy))
+            elif mode == "dynamic":
+                return TopKDynamicSelector(selector.topk.batchSize, {},
                                     self._get_reexamination_strategy(selector.topk.reexaminationStrategy))
             else:
                 return TopKSelector(selector.topk.k, selector.topk.batchSize,

@@ -25,7 +25,6 @@ message GetExamplesRequest {
   SearchId searchId = 1;
   ExampleSet exampleSet = 2;
   int32 nodeIndex = 3;
-  bool isFirst = 4;
 }
 
 message ExampleMetadata {

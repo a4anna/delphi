@@ -51,6 +51,9 @@ class DiamondRetriever(Retriever):
             self.running = False
             self._search.close()
 
+    def is_running(self):
+        return self._running
+
     def get_objects(self) -> Iterable[ObjectProvider]:
         for result in self._search.results:
             content = result[ATTR_DATA]
@@ -93,9 +96,12 @@ class DiamondRetriever(Retriever):
             if self._final_stats is not None:
                 return self._final_stats
 
-            stats = self._search.get_stats()
+            diamond_stats = self._search.get_stats()
+            stats = {'total_objects': diamond_stats['objs_total'],
+                     'dropped_objects': diamond_stats['objs_dropped'],
+                     'false_negatives': diamond_stats['objs_false_negative']}
 
-        return RetrieverStats(stats['objs_total'], stats['objs_dropped'], stats['objs_false_negative'])
+        return RetrieverStats(stats)
 
     def _create_search(self) -> DiamondSearch:
         search = DiamondSearch([ScopeCookie.parse(x) for x in self._dataset.cookies], [

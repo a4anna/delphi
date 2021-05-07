@@ -23,7 +23,7 @@ class FinetuneTrainerBase(ModelTrainerBase):
 
     @property
     def data_requirement(self) -> DataRequirement:
-        return DataRequirement.DISTRIBUTED_POSITIVES
+        return DataRequirement.DISTRIBUTED_FULL
         # if self.is_svm:
         #     return DataRequirement.DISTRIBUTED_FULL
         # else:
@@ -31,11 +31,11 @@ class FinetuneTrainerBase(ModelTrainerBase):
 
     @property
     def training_style(self) -> TrainingStyle:
-        return TrainingStyle.MASTER_ONLY  # Independent training or model averaging ??
+        return TrainingStyle.DISTRIBUTED  # Independent training or model averaging ??
 
     @property
     def should_sync_model(self) -> bool:
-        return True
+        return False
 
     def message_internal(self, request: Any) -> Any:
         pass

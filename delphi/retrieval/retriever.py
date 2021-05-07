@@ -28,3 +28,7 @@ class Retriever(metaclass=ABCMeta):
     @abstractmethod
     def get_stats(self) -> RetrieverStats:
         pass
+
+    @abstractmethod
+    def is_running(self) -> RetrieverStats:
+        pass

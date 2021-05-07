@@ -94,6 +94,7 @@ message SearchStats {
   int64 droppedObjects = 3;
   google.protobuf.Int64Value passedObjects = 4;
   int64 falseNegatives = 5;
+  map<string, string> others = 6;
 }
 
 message ModelStats {
@@ -142,6 +143,7 @@ message CreateSearchRequest {
   string metadata = 10;
   // default False
   bool skipTest = 11;
+  string trainPath = 12;
 }
 
 message ModelConditionConfig {
@@ -174,6 +176,7 @@ message ModelConfig {
     FastMPNCOVConfig fastMPNCOV = 2;
     WSDANConfig wsdan = 3;
     FinetuneConfig finetune = 4;
+    FinetuneConfig dnn_svm = 5;
   }
 }
 
