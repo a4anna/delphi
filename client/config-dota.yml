@@ -1,0 +1,52 @@
+debug: true
+model_dir: /home/shilpag/.delphi/models
+port: 6177
+node_index: 0
+nodes:
+- agra.diamond.cs.cmu.edu
+- briolette.diamond.cs.cmu.edu
+- cullinan.diamond.cs.cmu.edu
+- dresden.diamond.cs.cmu.edu
+- indore.diamond.cs.cmu.edu
+- kimberly.diamond.cs.cmu.edu
+- patiala.diamond.cs.cmu.edu
+- transvaal.diamond.cs.cmu.edu
+experiment-params:
+  exp_name: "roundabout-100k"
+  random_seed: 44
+  input_dir: /srv/diamond/dota/dota_roundabout
+  output_dir: ../logs/
+  negative-key: "/0/"
+  skip_test: true
+  # train_path: "/srv/diamond/delphi_train/baseball-diamond-44"
+  train_path: "/srv/diamond/delphi_train/roundabout-44"
+only_use_better_models: false
+retrain_policy:
+  only_positives: false
+  threshold: 0.2
+  type: percentage
+root_dir: /home/shilpag/.delphi/data
+feature_cache:
+  port: 12345
+  type: filesystem
+  feature_dir: /home/shilpag/.delphi/features
+train_strategy:
+- condition:
+    count: 5
+    type: examples_per_label
+  model:
+    cache:
+      port: 12345
+      type: filesystem
+    feature_extractor: mobilenet_v2 # mpncov_resnet50
+    # mpncov_resnet50 mobilenet_v2
+    linear_only: true # false
+    mode: distributed
+    probability: true # true
+    type: finetune
+selector:
+  topk:
+    k: 3
+    # maxent threshold pure
+    mode: pure
+    batchSize: 1000
